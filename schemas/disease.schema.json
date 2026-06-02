@@ -1,0 +1,103 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Disease Schema",
+  "description": "Schema for disease YAML files in data/mms/{code}.yaml",
+  "type": "object",
+  "required": [
+    "entity_uri",
+    "code",
+    "title_en",
+    "definition_en",
+    "parent_code",
+    "children_codes",
+    "pathophysiology_en",
+    "symptoms",
+    "differential_diagnosis",
+    "risk_factors",
+    "drugs",
+    "vector_text_en",
+    "stats",
+    "ai_enriched",
+    "last_updated"
+  ],
+  "properties": {
+    "entity_uri": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    },
+    "title_en": {
+      "type": "string"
+    },
+    "definition_en": {
+      "type": "string"
+    },
+    "parent_code": {
+      "type": ["string", "null"]
+    },
+    "children_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "pathophysiology_en": {
+      "type": "string"
+    },
+    "symptoms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "grade", "probability", "note"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "grade": {
+            "type": "string",
+            "enum": ["ALWAYS", "VERY_COMMON", "COMMON", "OCCASIONAL", "RARE", "NEVER"]
+          },
+          "probability": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "differential_diagnosis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "drugs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "vector_text_en": {
+      "type": "string"
+    },
+    "stats": {
+      "type": "object"
+    },
+    "ai_enriched": {
+      "type": "boolean"
+    },
+    "last_updated": {
+      "type": "string"
+    }
+  }
+}

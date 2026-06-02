@@ -1,0 +1,34 @@
+entity_uri: https://icd.who.int/browse11/l-m/en#/http%3a%2f%2fid.who.int%2ficd%2fentity%2f1B21.0
+code: 1B21.0
+title_en: Influenza due to identified novel influenza A virus
+definition_en: Acute respiratory infection caused by a novel influenza A virus subtype that has not previously circulated in humans.
+parent_code: 1B21
+children_codes: []
+pathophysiology_en: Viral infection of the respiratory tract with systemic symptoms due to cytokine release.
+symptoms:
+  - id: fever
+    grade: ALWAYS
+    probability: 1.0
+    note: High fever typically present at onset
+  - id: headache
+    grade: VERY_COMMON
+    probability: 0.85
+    note: Often severe and frontal
+differential_diagnosis:
+  - Common influenza
+  - COVID-19
+  - Respiratory syncytial virus
+risk_factors:
+  - Close contact with infected individuals
+  - Travel to endemic areas
+  - Compromised immune system
+drugs:
+  - Oseltamivir
+  - Zanamivir
+  - Peramivir
+vector_text_en: Novel influenza A virus respiratory infection with systemic symptoms
+stats:
+  incidence_rate: null
+  mortality_rate: null
+ai_enriched: false
+last_updated: "2024-01-15"

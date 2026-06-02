@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Symptom Schema",
+  "description": "Schema for symptom YAML files in data/foundation/{id}.yaml",
+  "type": "object",
+  "required": [
+    "id",
+    "title_en",
+    "definition_en",
+    "related_systems"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title_en": {
+      "type": "string"
+    },
+    "definition_en": {
+      "type": "string"
+    },
+    "related_systems": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
