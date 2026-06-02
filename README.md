@@ -1,4 +1,4 @@
-# Antigravity ICD-11 Knowledge Base
+# ITIAI ICD-11 Knowledge Base
 
 A structured knowledge base for ICD-11 disease classifications with symptom foundations and AI enrichment capabilities.
 
