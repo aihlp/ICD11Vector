@@ -92,19 +92,29 @@ def make_request(
     raise RuntimeError("Max retries exceeded")
 
 
-def fetch_release_date(session: requests.Session, token: str, start_time: float) -> str:
+def fetch_release_date(session: requests.Session, token: str, start_time: float) -> str | None:
     """Fetch the release date of ICD-11."""
     url = "https://id.who.int/icd/release/11"
-    data = make_request(session, url, token, start_time)
-    return data.get("releaseDate", "")  # type: ignore[no-any-return]
+    try:
+        data = make_request(session, url, token, start_time)
+        return data.get("releaseDate", "")  # type: ignore[no-any-return]
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            # Endpoint doesn't exist, return None to skip release date check
+            return None
+        raise
 
 
-def should_sync(data_dir: Path, release_date: str, force: bool = False) -> bool:
+def should_sync(data_dir: Path, release_date: str | None, force: bool = False) -> bool:
     """Check if sync is needed based on release date."""
     metadata_file = data_dir / ".sync_metadata.json"
 
     if force:
         return True
+
+    # If we couldn't get release date, always sync
+    if release_date is None:
+        return not any(data_dir.glob("mms/*.yaml"))
 
     if not metadata_file.exists():
         return True
