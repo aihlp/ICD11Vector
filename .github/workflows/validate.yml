@@ -18,4 +18,5 @@ jobs:
       - run: ruff check .
       - run: mypy src scripts
       - run: pytest
+      - run: python scripts/link_symptoms.py
       - run: python scripts/validate.py
