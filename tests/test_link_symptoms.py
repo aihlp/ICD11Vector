@@ -97,7 +97,8 @@ class TestGenerateLinksYaml:
     def test_generates_links_yaml(self, sample_repo: Path):
         """Should generate links.yaml file."""
         index = build_reverse_index(sample_repo)
-        output_file = write_reverse_index(sample_repo, index)
+        output_file = sample_repo / "data" / "generated" / "links.yaml"
+        write_reverse_index(output_file, index)
         
         assert output_file.exists()
         assert output_file == sample_repo / "data" / "generated" / "links.yaml"
