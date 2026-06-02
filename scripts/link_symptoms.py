@@ -78,11 +78,11 @@ def validate_disease(disease_data: dict[str, Any], disease_file: Path) -> list[s
     return errors
 
 
-def build_reverse_index(data_dir: Path, include_empty: bool = False) -> dict[str, Any]:
+def build_reverse_index(base_dir: Path, include_empty: bool = False) -> dict[str, Any]:
     """Build the reverse symptom-to-disease index.
     
     Args:
-        data_dir: Path to the data directory (containing mms/ and foundation/).
+        base_dir: Base directory containing data/ subdirectory (with mms/ and foundation/).
         include_empty: If True, include symptoms with no linked diseases.
         
     Returns:
@@ -91,6 +91,7 @@ def build_reverse_index(data_dir: Path, include_empty: bool = False) -> dict[str
     Raises:
         ValueError: If validation fails (missing symptom, id mismatch, etc.)
     """
+    data_dir = base_dir / "data"
     mms_dir = data_dir / "mms"
     foundation_dir = data_dir / "foundation"
     
@@ -178,64 +179,65 @@ def build_reverse_index(data_dir: Path, include_empty: bool = False) -> dict[str
     return {"symptoms": symptoms_output}
 
 
-def write_reverse_index(output_path: Path, index: dict[str, Any]) -> bool:
+def write_reverse_index(output_path: Path, index: dict[str, Any]) -> Path:
     """Write the reverse index to the output path if content changed.
-    
+
     Args:
-        output_path: Path to write the output file.
+        output_path: Path to the output file.
         index: The reverse index dictionary.
-        
+
     Returns:
-        True if file was written, False if content unchanged.
+        Path to the output file.
     """
     # Generate YAML content
     yaml_content = yaml.dump(index, default_flow_style=False, sort_keys=False, allow_unicode=True)
-    
+
     # Check if file exists and has same content
     if output_path.exists():
         with open(output_path, "r", encoding="utf-8") as f:
             existing_content = f.read()
         if existing_content == yaml_content:
-            return False
-    
+            return output_path
+
     # Write the file
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(yaml_content)
-    
-    return True
+
+    return output_path
 
 
-def check_reverse_index(data_dir: Path, output_path: Path) -> list[str]:
+def check_reverse_index(base_dir: Path) -> list[str]:
     """Check if the existing reverse index is up to date.
-    
+
     Args:
-        data_dir: Path to the data directory (containing mms/ and foundation/).
-        output_path: Path to the links.yaml file.
-        
+        base_dir: Base directory containing data/ subdirectory.
+
     Returns:
         List of human-readable errors. Empty list means check passed.
     """
+    output_path = base_dir / "data" / "generated" / "links.yaml"
+    
     # Check if links.yaml exists
     if not output_path.exists():
         return ["data/generated/links.yaml is missing"]
-    
+
     # Build expected index
     try:
-        expected_index = build_reverse_index(data_dir)
+        expected_index = build_reverse_index(base_dir)
     except ValueError as e:
         return [str(e)]
-    
+
     # Load existing index
     try:
         existing_index = load_yaml(output_path)
     except Exception as e:
         return [f"data/generated/links.yaml failed to load: {e}"]
-    
+
     # Compare indices
     if expected_index != existing_index:
         return ["data/generated/links.yaml is stale; run python scripts/link_symptoms.py"]
-    
+
     return []
 
 
@@ -264,30 +266,29 @@ def main() -> int:
     
     args = parser.parse_args()
     
-    # Determine data directory
+    # Determine base directory (the parent of data/)
     if args.data_dir:
-        data_dir = args.data_dir
+        # --data-dir points to the base directory containing data/
+        base_dir = args.data_dir
     else:
-        data_dir = Path(__file__).parent.parent / "data"
+        base_dir = Path(__file__).parent.parent
     
     # Determine output path
     if args.output:
         output_path = args.output
     else:
-        output_path = data_dir / "generated" / "links.yaml"
+        output_path = base_dir / "data" / "generated" / "links.yaml"
     
     # Build the reverse index
     try:
-        index = build_reverse_index(data_dir, include_empty=args.include_empty)
+        index = build_reverse_index(base_dir, include_empty=args.include_empty)
     except ValueError as e:
         print(f"Failed to build index:\n{e}")
         return 1
     
     # Write the output file only if content changed
-    if write_reverse_index(output_path, index):
-        print(f"Generated {output_path}")
-    else:
-        print(f"{output_path} is up to date (no changes)")
+    write_reverse_index(output_path, index)
+    print(f"Generated {output_path}")
     
     return 0
 

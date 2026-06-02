@@ -217,7 +217,7 @@ def main() -> int:
             load_yaml = getattr(link_symptoms, "load_yaml")
             
             try:
-                expected_index = build_reverse_index(data_dir)
+                expected_index = build_reverse_index(base_dir)
             except ValueError as e:
                 all_errors.append(str(e))
             
