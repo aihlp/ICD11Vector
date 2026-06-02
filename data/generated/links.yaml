@@ -1,0 +1,17 @@
+symptoms:
+  fever:
+    title_en: Fever
+    diseases:
+    - code: 1B21.0
+      title_en: Influenza due to identified novel influenza A virus
+      grade: ALWAYS
+      probability: 1.0
+      note: High fever typically present at onset
+  headache:
+    title_en: Headache
+    diseases:
+    - code: 1B21.0
+      title_en: Influenza due to identified novel influenza A virus
+      grade: VERY_COMMON
+      probability: 0.85
+      note: Often severe and frontal
