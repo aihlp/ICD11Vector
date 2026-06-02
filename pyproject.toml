@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icd11-kb"
+version = "0.1.0"
+description = "Antigravity ICD-11 Knowledge Base"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml",
+    "jsonschema",
+    "pydantic",
+    "typer",
+    "rich",
+    "pytest",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+]
+
+[tool.setuptools]
+packages = ["scripts"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
