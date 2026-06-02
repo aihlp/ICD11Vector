@@ -350,7 +350,8 @@ class TestCheckMode:
     def test_check_passes_after_generation(self, sample_repo: Path):
         """Check should pass after generating links.yaml."""
         index = build_reverse_index(sample_repo)
-        write_reverse_index(sample_repo, index)
+        output_file = sample_repo / "data" / "generated" / "links.yaml"
+        write_reverse_index(output_file, index)
         
         errors = check_reverse_index(sample_repo)
         assert len(errors) == 0
@@ -366,7 +367,8 @@ class TestCheckMode:
         """Check should fail when links.yaml is stale."""
         # Generate initial index
         index = build_reverse_index(sample_repo)
-        write_reverse_index(sample_repo, index)
+        output_file = sample_repo / "data" / "generated" / "links.yaml"
+        write_reverse_index(output_file, index)
         
         # Modify the disease to make index stale
         mms_dir = sample_repo / "data" / "mms"
@@ -417,7 +419,8 @@ class TestValidateIntegration:
         """validate.py should fail when reverse index is stale."""
         # First generate valid index
         index = build_reverse_index(sample_repo)
-        write_reverse_index(sample_repo, index)
+        output_file = sample_repo / "data" / "generated" / "links.yaml"
+        write_reverse_index(output_file, index)
         
         # Verify it passes initially
         errors = check_reverse_index(sample_repo)
