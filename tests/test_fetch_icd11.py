@@ -274,7 +274,7 @@ class TestWriteFoundationYaml:
 class TestIntegration:
     """Integration tests with mocked API."""
 
-    @patch.dict(os.environ, {"ICD11_CLIENT_ID": "test_id", "ICD11_CLIENT_SECRET": "test_secret"})
+    @patch.dict(os.environ, {"ICD_CLIENT_ID": "test_id", "ICD_CLIENT_SECRET": "test_secret"})
     @patch("fetch_icd11.get_token")
     @patch("fetch_icd11.fetch_release_date")
     @patch("fetch_icd11.fetch_linearisation_tree")
@@ -314,8 +314,8 @@ class TestIntegration:
     def test_main_missing_credentials(self):
         """Test main fails without credentials."""
         # Ensure env vars are not set
-        old_id = os.environ.pop("ICD11_CLIENT_ID", None)
-        old_secret = os.environ.pop("ICD11_CLIENT_SECRET", None)
+        old_id = os.environ.pop("ICD_CLIENT_ID", None)
+        old_secret = os.environ.pop("ICD_CLIENT_SECRET", None)
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
