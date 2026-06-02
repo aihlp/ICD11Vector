@@ -2,6 +2,12 @@
 """
 Fetch and sync ICD-11 data from WHO API.
 
+Sync Strategy:
+- WHO ICD-11 updates rarely (months/years), not daily.
+- Weekly cron checks for updates via releaseDate.
+- Manual trigger (workflow_dispatch) uses --force for full re-sync.
+- Idempotent: files are only written if content changed.
+
 Usage:
     python scripts/fetch_icd11.py --data-dir data [--force]
 
@@ -106,26 +112,30 @@ def fetch_release_date(session: requests.Session, token: str, start_time: float)
 
 
 def should_sync(data_dir: Path, release_date: str | None, force: bool = False) -> bool:
-    """Check if sync is needed based on release date."""
-    metadata_file = data_dir / ".sync_metadata.json"
-
+    """Check if sync is needed."""
     if force:
         return True
-
-    # If we couldn't get release date, always sync
-    if release_date is None:
-        return not any(data_dir.glob("mms/*.yaml"))
-
-    if not metadata_file.exists():
+    
+    # If no data exists, always sync (first run)
+    if not any(data_dir.glob("mms/*.yaml")):
         return True
-
-    try:
-        with open(metadata_file, "r", encoding="utf-8") as f:
-            metadata: dict[str, Any] = json.load(f)
-        existing_date = metadata.get("release_date", "")
-        return existing_date != release_date  # type: ignore[no-any-return]
-    except Exception:
-        return True
+    
+    # If release_date is available and changed, sync
+    if release_date:
+        metadata_file = data_dir / ".sync_metadata.json"
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+                existing_release_date = metadata.get("release_date")
+                return bool(existing_release_date != release_date)
+            except Exception:
+                return True
+        return True  # No metadata file yet
+    
+    # If release_date is None/empty but data exists, skip sync
+    # (WHO API doesn't provide reliable update info)
+    return False
 
 
 def load_state(data_dir: Path) -> dict[str, Any]:
@@ -410,6 +420,10 @@ def main(data_dir: Path, force: bool = False) -> int:
             console.print("[yellow]Already up to date. Use --force to re-sync.[/yellow]")
             return 0
 
+        # Save metadata before sync (release_date is guaranteed to be str here due to should_sync logic)
+        if release_date:
+            save_metadata(data_dir, release_date)
+
         console.print("[bold blue]Starting sync...[/bold blue]")
 
         # Load state for resume
@@ -510,9 +524,6 @@ def main(data_dir: Path, force: bool = False) -> int:
 
         # Clear state on success
         clear_state(data_dir)
-
-        # Save metadata
-        save_metadata(data_dir, release_date)
 
         console.print(f"[green]Sync complete. Processed {processed_count} entities.[/green]")
         console.print(f"[green]Files written: {files_written}, Files skipped (unchanged): {files_skipped}[/green]")
