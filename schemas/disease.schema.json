@@ -91,7 +91,36 @@
       "type": "string"
     },
     "stats": {
-      "type": "object"
+      "type": "object",
+      "required": [
+        "mortality_global_annual",
+        "dalys_global",
+        "incidence_rate_per_100k",
+        "active_clinical_trials",
+        "child_code_count",
+        "research_link_count"
+      ],
+      "properties": {
+        "mortality_global_annual": {
+          "type": ["number", "null"]
+        },
+        "dalys_global": {
+          "type": ["number", "null"]
+        },
+        "incidence_rate_per_100k": {
+          "type": ["number", "null"]
+        },
+        "active_clinical_trials": {
+          "type": ["integer", "null"]
+        },
+        "child_code_count": {
+          "type": "integer"
+        },
+        "research_link_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
     },
     "ai_enriched": {
       "type": "boolean"

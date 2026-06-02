@@ -54,7 +54,14 @@ def valid_disease_data() -> dict[str, Any]:
         "risk_factors": ["Risk factor 1"],
         "drugs": ["Drug 1"],
         "vector_text_en": "Test vector text",
-        "stats": {},
+        "stats": {
+            "mortality_global_annual": None,
+            "dalys_global": None,
+            "incidence_rate_per_100k": None,
+            "active_clinical_trials": None,
+            "child_code_count": 0,
+            "research_link_count": 0,
+        },
         "ai_enriched": False,
         "last_updated": "2024-01-15",
     }

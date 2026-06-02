@@ -23,7 +23,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["scripts"]
+packages.find = { where = ["src"] }
 
 [tool.ruff]
 line-length = 100
