@@ -36,6 +36,32 @@ This validates:
 - All symptom YAML files against the symptom schema
 - Cross-references between diseases and symptoms
 - Grade/probability consistency for symptoms
+- Reverse index (`data/generated/links.yaml`) is up to date
+
+### Fetch ICD-11 Data
+
+```bash
+ICD11_CLIENT_ID=... ICD11_CLIENT_SECRET=... python scripts/fetch_icd11.py --limit 10
+```
+
+Options:
+- `--limit N`: Limit number of entities to fetch
+- `--resume`: Resume from checkpoint
+- `--checkpoint PATH`: Custom checkpoint file path
+- `--root PATH`: Repository root directory
+
+**Note:** CI tests use mocked HTTP responses and do not perform real external sync.
+You must set `ICD11_CLIENT_ID` and `ICD11_CLIENT_SECRET` environment variables.
+Credentials are never written to disk.
+
+### Generate Symptom Links
+
+```bash
+python scripts/link_symptoms.py
+python scripts/link_symptoms.py --check
+```
+
+The `data/generated/links.yaml` file is generated automatically and should not be manually edited.
 
 ### Run Tests
 

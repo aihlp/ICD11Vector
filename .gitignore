@@ -1,45 +1,57 @@
-```yaml
-# Generated files
-data/generated/
-
-# Python
+```
+# Dependencies
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Testing
-.coverage
-htmlcov/
-.coverage.*
-
-# Environment
+.Python
+env/
+venv/
+.venv/
 .env
 .env.local
 .env.*
-venv/
 .venv/
-.envrc
+.ENV/
+.ENV.local
+.ENV.*
 
-# Dependencies
-node_modules/
-.build/
+# Build artifacts
+build/
 dist/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
+# Testing
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.hypothesis/
 
 # Logs
 *.log
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Python specific
+*.so
+.Python
+*.sqlite3
+*.sqlite3-journal
 ```
-
-Wait, let me reconsider. The only generated file is `data/generated/links.yaml` which appears to be a data file, not a build artifact. Looking at the changes again - these appear to be legitimate source/config files without any build artifacts, dependencies, or temp files.
-
-(empty - no output)

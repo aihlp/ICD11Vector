@@ -4,6 +4,7 @@ pydantic
 typer
 rich
 pytest
+httpx
 
 [dev]
 ruff
