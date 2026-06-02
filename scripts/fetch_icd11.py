@@ -6,10 +6,11 @@ Usage:
     python scripts/fetch_icd11.py --data-dir data [--force]
 
 Environment variables:
-    ICD11_CLIENT_ID: OAuth2 client ID
-    ICD11_CLIENT_SECRET: OAuth2 client secret
+    ICD_CLIENT_ID: OAuth2 client ID
+    ICD_CLIENT_SECRET: OAuth2 client secret
 """
 
+import hashlib
 import json
 import os
 import sys
@@ -20,6 +21,8 @@ from typing import Any
 
 import requests
 import yaml
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
 
 
 # Rate limiting: 5 requests per second
@@ -67,9 +70,15 @@ def make_request(
                 # Token expired, get new one (caller must handle this)
                 raise requests.HTTPError("401 Unauthorized - token expired")
 
-            if resp.status_code == 429 or resp.status_code >= 500:
+            if resp.status_code == 429:
+                # Rate limited - wait and retry
                 retry_after = int(resp.headers.get("Retry-After", 2**attempt))
                 time.sleep(retry_after)
+                continue
+
+            if resp.status_code >= 500:
+                # Server error - exponential backoff
+                time.sleep(2**attempt)
                 continue
 
             resp.raise_for_status()
@@ -231,8 +240,50 @@ def extract_code_from_title(title: str) -> str:
     return parts[0] if parts else title
 
 
-def write_disease_yaml(category: dict[str, Any], output_path: Path) -> None:
-    """Write disease YAML file."""
+def yaml_content_hash(yaml_data: dict[str, Any]) -> str:
+    """Compute a hash of YAML content for idempotency check."""
+    content = yaml.safe_dump(
+        yaml_data,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+    )
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def write_yaml_idempotent(output_path: Path, yaml_data: dict[str, Any]) -> bool:
+    """Write YAML file only if content has changed. Returns True if written."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Check if file exists and has same content
+    if output_path.exists():
+        with open(output_path, "r", encoding="utf-8") as f:
+            existing_content = f.read()
+        
+        new_content = yaml.safe_dump(
+            yaml_data,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+        
+        if existing_content == new_content:
+            return False  # No change needed
+    
+    # Write new content
+    with open(output_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            yaml_data,
+            f,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+    return True
+
+
+def write_disease_yaml(category: dict[str, Any], output_path: Path) -> bool:
+    """Write disease YAML file. Returns True if file was written/updated."""
     entity_uri = category.get("@id", "")
     title = category.get("title", "")
     code = extract_code_from_title(title)
@@ -287,19 +338,11 @@ def write_disease_yaml(category: dict[str, Any], output_path: Path) -> None:
         "last_updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            yaml_data,
-            f,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-        )
+    return write_yaml_idempotent(output_path, yaml_data)
 
 
-def write_foundation_yaml(entity: dict[str, Any], output_path: Path) -> None:
-    """Write foundation entity YAML file."""
+def write_foundation_yaml(entity: dict[str, Any], output_path: Path) -> bool:
+    """Write foundation entity YAML file. Returns True if file was written/updated."""
     entity_id = output_path.stem
     title = entity.get("title", "")
     definition = ""
@@ -319,52 +362,45 @@ def write_foundation_yaml(entity: dict[str, Any], output_path: Path) -> None:
         "related_systems": [],
     }
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            yaml_data,
-            f,
-            allow_unicode=True,
-            sort_keys=False,
-            default_flow_style=False,
-        )
+    return write_yaml_idempotent(output_path, yaml_data)
 
 
 def main(data_dir: Path, force: bool = False) -> int:
     """Main entry point."""
-    # Check credentials
-    client_id = os.environ.get("ICD11_CLIENT_ID", "")
-    client_secret = os.environ.get("ICD11_CLIENT_SECRET", "")
+    # Check credentials - use ICD_CLIENT_ID and ICD_CLIENT_SECRET as per requirements
+    client_id = os.environ.get("ICD_CLIENT_ID", "")
+    client_secret = os.environ.get("ICD_CLIENT_SECRET", "")
 
     if not client_id or not client_secret:
         print(
-            "Error: ICD11_CLIENT_ID and ICD11_CLIENT_SECRET environment variables required",
+            "Error: ICD_CLIENT_ID and ICD_CLIENT_SECRET environment variables required",
             file=sys.stderr,
         )
         return 1
 
     start_time = time.time()
+    console = Console()
 
     # Create session
     session = requests.Session()
 
     try:
         # Get token
-        print("Obtaining OAuth2 token...")
-        token = get_token(session, client_id, client_secret)
-        print("Token obtained.")
+        with console.status("[bold green]Obtaining OAuth2 token..."):
+            token = get_token(session, client_id, client_secret)
+        console.print("[green]Token obtained.[/green]")
 
         # Fetch release date
-        print("Fetching release date...")
-        release_date = fetch_release_date(session, token, start_time)
-        print(f"Release date: {release_date}")
+        with console.status("[bold green]Fetching release date..."):
+            release_date = fetch_release_date(session, token, start_time)
+        console.print(f"[green]Release date: {release_date}[/green]")
 
         # Check if sync needed
         if not should_sync(data_dir, release_date, force):
-            print("Already up to date. Use --force to re-sync.")
+            console.print("[yellow]Already up to date. Use --force to re-sync.[/yellow]")
             return 0
 
-        print("Starting sync...")
+        console.print("[bold blue]Starting sync...[/bold blue]")
 
         # Load state for resume
         state = load_state(data_dir)
@@ -373,18 +409,18 @@ def main(data_dir: Path, force: bool = False) -> int:
 
         # Fetch linearisation tree
         if not pending_ids:
-            print("Fetching MMS linearisation tree...")
-            mms_url = "https://id.who.int/icd/release/11/mms"
-            tree = fetch_linearisation_tree(session, token, mms_url, start_time)
-            print(f"Fetched {len(tree)} entities from tree.")
+            with console.status("[bold green]Fetching MMS linearisation tree..."):
+                mms_url = "https://id.who.int/icd/release/11/mms"
+                tree = fetch_linearisation_tree(session, token, mms_url, start_time)
+            console.print(f"[green]Fetched {len(tree)} entities from tree.[/green]")
 
             # Extract disease categories
             categories = extract_disease_categories(tree)
-            print(f"Found {len(categories)} disease categories.")
+            console.print(f"[green]Found {len(categories)} disease categories.[/green]")
 
             # Collect foundation references
             foundation_ids = collect_foundation_refs(tree)
-            print(f"Found {len(foundation_ids)} foundation entity references.")
+            console.print(f"[green]Found {len(foundation_ids)} foundation entity references.[/green]")
 
             # Build pending list: diseases first, then foundation
             pending_ids = [f"disease:{c.get('@id', '')}" for c in categories]
@@ -392,62 +428,75 @@ def main(data_dir: Path, force: bool = False) -> int:
 
             # Remove already processed
             pending_ids = [pid for pid in pending_ids if pid not in processed_ids]
-            print(f"{len(pending_ids)} entities remaining to process.")
+            console.print(f"[green]{len(pending_ids)} entities remaining to process.[/green]")
 
         # Process pending entities
         mms_dir = data_dir / "mms"
         foundation_dir = data_dir / "foundation"
 
+        files_written = 0
+        files_skipped = 0
         processed_count = 0
-        for pending_id in pending_ids[:]:
-            # Check timeout periodically
-            if (time.time() - start_time) / 3600 > TOTAL_TIMEOUT_HOURS:
-                print(f"Timeout reached. Saved state with {len(pending_ids)} remaining.")
-                state["pending"] = pending_ids
-                state["processed"] = list(processed_ids)
-                save_state(data_dir, state)
-                return 75
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Processing...", total=len(pending_ids))
+            
+            for pending_id in pending_ids[:]:
+                # Check timeout periodically
+                if (time.time() - start_time) / 3600 > TOTAL_TIMEOUT_HOURS:
+                    console.print(f"[yellow]Timeout reached. Saved state with {len(pending_ids)} remaining.[/yellow]")
+                    state["pending"] = pending_ids
+                    state["processed"] = list(processed_ids)
+                    save_state(data_dir, state)
+                    return 75
 
-            if pending_id.startswith("disease:"):
-                entity_uri = pending_id[8:]
-                # Find category in tree (we need to refetch or store it)
-                # For simplicity, we'll fetch each disease individually
-                print(f"Processing disease: {entity_uri}")
+                if pending_id.startswith("disease:"):
+                    entity_uri = pending_id[8:]
+                    progress.update(task, description=f"Processing disease: {entity_uri[-20:]}")
 
-                # Fetch the entity
-                try:
-                    entity_data = make_request(session, entity_uri, token, start_time)
-                    output_path = mms_dir / f"{extract_code_from_title(entity_data.get('title', ''))}.yaml"
-                    write_disease_yaml(entity_data, output_path)
-                    print(f"  Written: {output_path.name}")
-                except Exception as e:
-                    print(f"  Error: {e}", file=sys.stderr)
-                    continue
+                    # Fetch the entity
+                    try:
+                        entity_data = make_request(session, entity_uri, token, start_time)
+                        output_path = mms_dir / f"{extract_code_from_title(entity_data.get('title', ''))}.yaml"
+                        if write_disease_yaml(entity_data, output_path):
+                            files_written += 1
+                        else:
+                            files_skipped += 1
+                    except Exception as e:
+                        console.print(f"[red]Error processing {entity_uri}: {e}[/red]")
+                        continue
 
-            elif pending_id.startswith("foundation:"):
-                entity_id = pending_id[11:]
-                print(f"Processing foundation: {entity_id}")
+                elif pending_id.startswith("foundation:"):
+                    entity_id = pending_id[11:]
+                    progress.update(task, description=f"Processing foundation: {entity_id}")
 
-                try:
-                    entity_data = fetch_foundation_entity(
-                        session, token, entity_id, start_time
-                    )
-                    output_path = foundation_dir / f"{entity_id}.yaml"
-                    write_foundation_yaml(entity_data, output_path)
-                    print(f"  Written: {output_path.name}")
-                except Exception as e:
-                    print(f"  Error: {e}", file=sys.stderr)
-                    continue
+                    try:
+                        entity_data = fetch_foundation_entity(
+                            session, token, entity_id, start_time
+                        )
+                        output_path = foundation_dir / f"{entity_id}.yaml"
+                        if write_foundation_yaml(entity_data, output_path):
+                            files_written += 1
+                        else:
+                            files_skipped += 1
+                    except Exception as e:
+                        console.print(f"[red]Error processing {entity_id}: {e}[/red]")
+                        continue
 
-            processed_ids.add(pending_id)
-            pending_ids.remove(pending_id)
-            processed_count += 1
+                processed_ids.add(pending_id)
+                pending_ids.remove(pending_id)
+                processed_count += 1
+                progress.advance(task)
 
-            # Save state periodically (every 10 entities)
-            if processed_count % 10 == 0:
-                state["pending"] = pending_ids
-                state["processed"] = list(processed_ids)
-                save_state(data_dir, state)
+                # Save state periodically (every 10 entities)
+                if processed_count % 10 == 0:
+                    state["pending"] = pending_ids
+                    state["processed"] = list(processed_ids)
+                    save_state(data_dir, state)
 
         # Clear state on success
         clear_state(data_dir)
@@ -455,7 +504,8 @@ def main(data_dir: Path, force: bool = False) -> int:
         # Save metadata
         save_metadata(data_dir, release_date)
 
-        print(f"Sync complete. Processed {processed_count} entities.")
+        console.print(f"[green]Sync complete. Processed {processed_count} entities.[/green]")
+        console.print(f"[green]Files written: {files_written}, Files skipped (unchanged): {files_skipped}[/green]")
         return 0
 
     except requests.RequestException as e:
