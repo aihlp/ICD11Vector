@@ -5,25 +5,27 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "icd11-kb"
 version = "0.1.0"
-description = "Antigravity ICD-11 Knowledge Base"
+description = "Structured and vector-ready ICD-11 knowledge base"
 requires-python = ">=3.11"
 dependencies = [
-    "pyyaml",
-    "jsonschema",
-    "pydantic",
-    "typer",
-    "rich",
-    "pytest",
+  "jsonschema>=4.22",
+  "pyyaml>=6.0.1",
+  "pydantic>=2.7",
+  "requests>=2.32",
+  "typer>=0.12",
+  "rich>=13.7"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "ruff",
-    "mypy",
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "types-PyYAML>=6.0"
 ]
 
-[tool.setuptools]
-packages.find = { where = ["src"] }
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.ruff]
 line-length = 100

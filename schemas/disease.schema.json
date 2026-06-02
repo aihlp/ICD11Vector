@@ -43,7 +43,7 @@
       }
     },
     "pathophysiology_en": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "symptoms": {
       "type": "array",
@@ -64,7 +64,7 @@
             "maximum": 1.0
           },
           "note": {
-            "type": "string"
+            "type": ["string", "null"]
           }
         }
       }
@@ -88,7 +88,7 @@
       }
     },
     "vector_text_en": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "stats": {
       "type": "object",
