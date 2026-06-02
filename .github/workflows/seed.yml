@@ -49,11 +49,11 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: chore: daily ICD-11 data sync
+          commit-message: "chore: daily ICD-11 data sync"
           branch: chore/daily-icd11-sync
-          title: chore: daily ICD-11 data sync
+          title: "chore: daily ICD-11 data sync"
           body: |
             Automated daily sync of ICD-11 data from WHO API.
-            
+
             This PR was created automatically by the daily sync workflow.
           labels: automated-pr
