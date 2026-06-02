@@ -28,7 +28,11 @@ drugs:
   - Peramivir
 vector_text_en: Novel influenza A virus respiratory infection with systemic symptoms
 stats:
-  incidence_rate: null
-  mortality_rate: null
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 0
+  research_link_count: 0
 ai_enriched: false
 last_updated: "2024-01-15"

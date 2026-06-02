@@ -3,7 +3,7 @@
 Validate disease and symptom YAML files against JSON schemas.
 
 Usage:
-    python scripts/validate.py
+    python scripts/validate.py [base_dir]
 """
 
 import json
@@ -124,9 +124,15 @@ def validate_directory(
     return errors, ids
 
 
-def main() -> int:
-    """Run validation and return exit code."""
-    base_dir = Path(__file__).parent.parent
+def validate_repository(base_dir: Path) -> list[str]:
+    """Validate the entire repository structure.
+    
+    Args:
+        base_dir: Path to the repository root directory.
+        
+    Returns:
+        List of error messages. Empty list means validation passed.
+    """
     schemas_dir = base_dir / "schemas"
     mms_dir = base_dir / "data" / "mms"
     foundation_dir = base_dir / "data" / "foundation"
@@ -137,14 +143,12 @@ def main() -> int:
     try:
         disease_schema = load_schema(schemas_dir / "disease.schema.json")
     except Exception as e:
-        print(f"Error loading disease schema: {e}")
-        return 1
+        return [f"Error loading disease schema: {e}"]
 
     try:
         symptom_schema = load_schema(schemas_dir / "symptom.schema.json")
     except Exception as e:
-        print(f"Error loading symptom schema: {e}")
-        return 1
+        return [f"Error loading symptom schema: {e}"]
 
     # Validate foundation symptoms first to get valid IDs
     foundation_errors, foundation_ids = validate_directory(
@@ -175,14 +179,32 @@ def main() -> int:
 
     all_errors.extend(disease_errors)
 
+    # Convert all errors to strings
+    string_errors: list[str] = []
+    for error in all_errors:
+        if isinstance(error, dict):
+            string_errors.append(f"[{error.get('file', 'unknown')}] {error.get('error', error)}")
+        else:
+            string_errors.append(str(error))
+
+    return string_errors
+
+
+def main() -> int:
+    """Run validation and return exit code."""
+    # Accept optional base_dir argument, default to parent of script
+    if len(sys.argv) > 1:
+        base_dir = Path(sys.argv[1])
+    else:
+        base_dir = Path(__file__).parent.parent
+
+    all_errors = validate_repository(base_dir)
+
     # Report results
     if all_errors:
         print(f"Validation failed with {len(all_errors)} error(s):\n")
         for i, error in enumerate(all_errors, 1):
-            if isinstance(error, dict):
-                print(f"{i}. [{error.get('file', 'unknown')}] {error.get('error', error)}")
-            else:
-                print(f"{i}. {error}")
+            print(f"{i}. {error}")
         return 1
 
     print("Validation passed successfully.")
