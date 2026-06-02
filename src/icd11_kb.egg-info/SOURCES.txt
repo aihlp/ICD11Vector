@@ -6,4 +6,5 @@ src/icd11_kb.egg-info/SOURCES.txt
 src/icd11_kb.egg-info/dependency_links.txt
 src/icd11_kb.egg-info/requires.txt
 src/icd11_kb.egg-info/top_level.txt
+tests/test_link_symptoms.py
 tests/test_validate.py

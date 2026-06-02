@@ -16,6 +16,6 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: ruff check .
-      - run: mypy scripts
+      - run: mypy src scripts
       - run: pytest
       - run: python scripts/validate.py

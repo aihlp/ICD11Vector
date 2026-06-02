@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-icd11_kb.egg-info/PKG-INFO
-icd11_kb.egg-info/SOURCES.txt
-icd11_kb.egg-info/dependency_links.txt
-icd11_kb.egg-info/requires.txt
-icd11_kb.egg-info/top_level.txt
-scripts/validate.py
-tests/test_validate.py

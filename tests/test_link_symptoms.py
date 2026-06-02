@@ -1,8 +1,6 @@
 """Tests for the link_symptoms module."""
 
-import tempfile
 from pathlib import Path
-from typing import Any
 
 import pytest
 import yaml  # type: ignore[import-untyped]
@@ -15,7 +13,6 @@ from link_symptoms import (  # type: ignore[import-not-found]
     build_reverse_index,
     write_reverse_index,
     check_reverse_index,
-    load_yaml,
 )
 
 

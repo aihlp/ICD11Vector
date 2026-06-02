@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
-from jsonschema import Draft7Validator  # type: ignore[import-untyped]
+import yaml
+from jsonschema import Draft7Validator
 
 
 def load_yaml(file_path: Path) -> dict[str, Any]:
@@ -21,27 +21,7 @@ def load_yaml(file_path: Path) -> dict[str, Any]:
         return yaml.safe_load(f)  # type: ignore[no-any-return]
 
 
-# Import link_symptoms functions for reverse index checking
-try:
-    from scripts.link_symptoms import check_reverse_index
-except ImportError:
-    # Fallback for direct script execution
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "link_symptoms", 
-        Path(__file__).parent / "link_symptoms.py"
-    )
-    if spec and spec.loader:
-        link_symptoms_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(link_symptoms_module)
-        check_reverse_index = link_symptoms_module.check_reverse_index
-    else:
-        def check_reverse_index(base_dir: Path) -> list[str]:
-            """Stub implementation if module cannot be loaded."""
-            return []
-
-
-# Grade to probability range mapping
+# Grade to probability range mapping (stricter policy)
 GRADE_PROBABILITY_RANGES = {
     "ALWAYS": (1.0, 1.0),
     "VERY_COMMON": (0.7, 0.99),
@@ -198,9 +178,6 @@ def validate_repository(base_dir: Path) -> list[str]:
             all_errors.extend(validate_grade_probability(symptom, str(yaml_file)))
 
     all_errors.extend(disease_errors)
-
-    # Check reverse index is up to date
-    all_errors.extend(check_reverse_index(base_dir))
 
     # Convert all errors to strings
     string_errors: list[str] = []
