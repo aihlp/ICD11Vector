@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: icd11-kb
+Version: 0.1.0
+Summary: Antigravity ICD-11 Knowledge Base
+Requires-Python: >=3.11
+Requires-Dist: pyyaml
+Requires-Dist: jsonschema
+Requires-Dist: pydantic
+Requires-Dist: typer
+Requires-Dist: rich
+Requires-Dist: pytest
+Provides-Extra: dev
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: mypy; extra == "dev"

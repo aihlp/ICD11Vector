@@ -1,0 +1,10 @@
+pyyaml
+jsonschema
+pydantic
+typer
+rich
+pytest
+
+[dev]
+ruff
+mypy
