@@ -1,94 +1,40 @@
-```
-# Python
+```yaml
+# Dependencies
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.egg-info/
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg
-*.pyc
-*.pyo
-*.pyd
-*.so
-*.dylib
-*.dll
-*.class
-*.o
-*.obj
-*.out
-
-# Virtual environments
 venv/
 .venv/
-env/
-ENV/
 .env
 .env.local
 .env.*
-.envrc
 
-# IDE and editor files
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Editors
 .vscode/
 .idea/
 *.swp
 *.swo
-*.tmp
+
+# Logs
 *.log
 
-# System files
+# OS
 .DS_Store
 Thumbs.db
 
-# Coverage reports
+# Coverage
 .coverage
+coverage/
 htmlcov/
-.coverage.*
-.coverage.xml
-coverage.xml
-*.coverage
 
 # Testing
 .pytest_cache/
 .mypy_cache/
-.tox/
-.cover/
-
-# Distribution / packaging
-*.tar.gz
-*.whl
-*.zip
-*.tar
-*.gz
-*.bz2
-*.xz
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-
-# Local configuration
-config.local
 ```

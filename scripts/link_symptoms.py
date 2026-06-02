@@ -7,7 +7,8 @@ every referenced symptom exists in data/foundation/, and generates a
 deterministic reverse symptom-to-disease index.
 
 Usage:
-    python scripts/link_symptoms.py [--check] [--root PATH]
+    python scripts/link_symptoms.py --data-dir data --output data/generated/links.yaml
+    python scripts/link_symptoms.py --data-dir data --output data/generated/links.yaml --include-empty
 """
 
 import argparse
@@ -77,11 +78,12 @@ def validate_disease(disease_data: dict[str, Any], disease_file: Path) -> list[s
     return errors
 
 
-def build_reverse_index(base_dir: Path) -> dict[str, Any]:
+def build_reverse_index(data_dir: Path, include_empty: bool = False) -> dict[str, Any]:
     """Build the reverse symptom-to-disease index.
     
     Args:
-        base_dir: Path to the repository root directory.
+        data_dir: Path to the data directory (containing mms/ and foundation/).
+        include_empty: If True, include symptoms with no linked diseases.
         
     Returns:
         Dictionary containing the reverse index.
@@ -89,8 +91,8 @@ def build_reverse_index(base_dir: Path) -> dict[str, Any]:
     Raises:
         ValueError: If validation fails (missing symptom, id mismatch, etc.)
     """
-    mms_dir = base_dir / "data" / "mms"
-    foundation_dir = base_dir / "data" / "foundation"
+    mms_dir = data_dir / "mms"
+    foundation_dir = data_dir / "foundation"
     
     # Load foundation symptoms
     foundation_symptoms = load_foundation_symptoms(foundation_dir)
@@ -100,49 +102,47 @@ def build_reverse_index(base_dir: Path) -> dict[str, Any]:
     reverse_index: dict[str, list[dict[str, Any]]] = {}
     all_errors: list[str] = []
     
-    if not mms_dir.exists():
-        return {"symptoms": {}}
-    
-    for yaml_file in sorted(mms_dir.glob("*.yaml")):
-        try:
-            disease_data = load_yaml(yaml_file)
-        except Exception as e:
-            all_errors.append(f"{yaml_file}: Failed to load YAML: {e}")
-            continue
-        
-        # Validate disease has required fields
-        all_errors.extend(validate_disease(disease_data, yaml_file))
-        
-        # Process symptoms
-        for symptom_ref in disease_data.get("symptoms", []):
-            symptom_id = symptom_ref.get("id")
-            
-            if not symptom_id:
-                continue  # Already reported as error
-            
-            # Check symptom exists in foundation
-            if symptom_id not in foundation_ids:
-                all_errors.append(
-                    f"{yaml_file}: Referenced symptom '{symptom_id}' not found in data/foundation/"
-                )
+    if mms_dir.exists():
+        for yaml_file in sorted(mms_dir.glob("*.yaml")):
+            try:
+                disease_data = load_yaml(yaml_file)
+            except Exception as e:
+                all_errors.append(f"{yaml_file}: Failed to load YAML: {e}")
                 continue
             
-            # Get symptom title from foundation
-            symptom_title = foundation_symptoms[symptom_id].get("title_en", "")
+            # Validate disease has required fields
+            all_errors.extend(validate_disease(disease_data, yaml_file))
             
-            # Build disease link entry
-            disease_link = {
-                "code": disease_data.get("code", ""),
-                "title_en": disease_data.get("title_en", ""),
-                "grade": symptom_ref.get("grade"),
-                "probability": symptom_ref.get("probability"),
-                "note": symptom_ref.get("note"),
-            }
-            
-            if symptom_id not in reverse_index:
-                reverse_index[symptom_id] = []
-            
-            reverse_index[symptom_id].append(disease_link)
+            # Process symptoms
+            for symptom_ref in disease_data.get("symptoms", []):
+                symptom_id = symptom_ref.get("id")
+                
+                if not symptom_id:
+                    continue  # Already reported as error
+                
+                # Check symptom exists in foundation
+                if symptom_id not in foundation_ids:
+                    all_errors.append(
+                        f"{yaml_file}: Referenced symptom '{symptom_id}' not found in data/foundation/"
+                    )
+                    continue
+                
+                # Get symptom title from foundation
+                symptom_title = foundation_symptoms[symptom_id].get("title_en", "")
+                
+                # Build disease link entry
+                disease_link = {
+                    "code": disease_data.get("code", ""),
+                    "title_en": disease_data.get("title_en", ""),
+                    "grade": symptom_ref.get("grade"),
+                    "probability": symptom_ref.get("probability"),
+                    "note": symptom_ref.get("note"),
+                }
+                
+                if symptom_id not in reverse_index:
+                    reverse_index[symptom_id] = []
+                
+                reverse_index[symptom_id].append(disease_link)
     
     if all_errors:
         raise ValueError("\n".join(all_errors))
@@ -153,67 +153,88 @@ def build_reverse_index(base_dir: Path) -> dict[str, Any]:
     
     # Build final output structure with symptoms sorted alphabetically
     symptoms_output: dict[str, dict[str, Any]] = {}
-    for symptom_id in sorted(reverse_index.keys()):
+    
+    # Determine which symptoms to include
+    if include_empty:
+        # Include all foundation symptoms
+        symptom_ids_to_include = sorted(foundation_symptoms.keys())
+    else:
+        # Only include symptoms with at least one disease link
+        symptom_ids_to_include = sorted(reverse_index.keys())
+    
+    for symptom_id in symptom_ids_to_include:
         symptom_title = foundation_symptoms[symptom_id].get("title_en", "")
+        diseases_list = reverse_index.get(symptom_id, [])
+        
+        # Skip symptoms with no diseases unless include_empty is True
+        if not include_empty and not diseases_list:
+            continue
+        
         symptoms_output[symptom_id] = {
             "title_en": symptom_title,
-            "diseases": reverse_index[symptom_id],
+            "diseases": diseases_list,
         }
     
     return {"symptoms": symptoms_output}
 
 
-def write_reverse_index(base_dir: Path, index: dict[str, Any]) -> Path:
-    """Write the reverse index to data/generated/links.yaml.
+def write_reverse_index(output_path: Path, index: dict[str, Any]) -> bool:
+    """Write the reverse index to the output path if content changed.
     
     Args:
-        base_dir: Path to the repository root directory.
+        output_path: Path to write the output file.
         index: The reverse index dictionary.
         
     Returns:
-        Path to the written file.
+        True if file was written, False if content unchanged.
     """
-    generated_dir = base_dir / "data" / "generated"
-    generated_dir.mkdir(parents=True, exist_ok=True)
+    # Generate YAML content
+    yaml_content = yaml.dump(index, default_flow_style=False, sort_keys=False, allow_unicode=True)
     
-    output_file = generated_dir / "links.yaml"
+    # Check if file exists and has same content
+    if output_path.exists():
+        with open(output_path, "r", encoding="utf-8") as f:
+            existing_content = f.read()
+        if existing_content == yaml_content:
+            return False
     
-    with open(output_file, "w", encoding="utf-8") as f:
-        yaml.dump(index, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    # Write the file
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(yaml_content)
     
-    return output_file
+    return True
 
 
-def check_reverse_index(base_dir: Path) -> list[str]:
+def check_reverse_index(data_dir: Path, output_path: Path) -> list[str]:
     """Check if the existing reverse index is up to date.
     
     Args:
-        base_dir: Path to the repository root directory.
+        data_dir: Path to the data directory (containing mms/ and foundation/).
+        output_path: Path to the links.yaml file.
         
     Returns:
         List of human-readable errors. Empty list means check passed.
     """
-    generated_file = base_dir / "data" / "generated" / "links.yaml"
-    
     # Check if links.yaml exists
-    if not generated_file.exists():
+    if not output_path.exists():
         return ["data/generated/links.yaml is missing"]
     
     # Build expected index
     try:
-        expected_index = build_reverse_index(base_dir)
+        expected_index = build_reverse_index(data_dir)
     except ValueError as e:
         return [str(e)]
     
     # Load existing index
     try:
-        existing_index = load_yaml(generated_file)
+        existing_index = load_yaml(output_path)
     except Exception as e:
         return [f"data/generated/links.yaml failed to load: {e}"]
     
     # Compare indices
     if expected_index != existing_index:
-        return ["data/generated/links.yaml is stale (differs from expected output)"]
+        return ["data/generated/links.yaml is stale; run python scripts/link_symptoms.py"]
     
     return []
 
@@ -221,51 +242,54 @@ def check_reverse_index(base_dir: Path) -> list[str]:
 def main() -> int:
     """Run the link symptoms script and return exit code."""
     parser = argparse.ArgumentParser(
-        description="Generate or check reverse symptom-to-disease index"
+        description="Generate reverse symptom-to-disease index"
     )
     parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Check if existing links.yaml is up to date instead of generating",
-    )
-    parser.add_argument(
-        "--root",
+        "--data-dir",
         type=Path,
         default=None,
-        help="Repository root directory (default: parent of script)",
+        help="Path to data directory containing mms/ and foundation/ (default: ./data)",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output path for links.yaml (default: data/generated/links.yaml)",
+    )
+    parser.add_argument(
+        "--include-empty",
+        action="store_true",
+        help="Include symptoms with no linked diseases",
     )
     
     args = parser.parse_args()
     
-    # Determine base directory
-    if args.root:
-        base_dir = args.root
+    # Determine data directory
+    if args.data_dir:
+        data_dir = args.data_dir
     else:
-        base_dir = Path(__file__).parent.parent
+        data_dir = Path(__file__).parent.parent / "data"
     
-    if args.check:
-        # Check mode
-        errors = check_reverse_index(base_dir)
-        
-        if errors:
-            print(f"Check failed with {len(errors)} error(s):\n")
-            for i, error in enumerate(errors, 1):
-                print(f"{i}. {error}")
-            return 1
-        
-        print("Reverse index is up to date.")
-        return 0
+    # Determine output path
+    if args.output:
+        output_path = args.output
     else:
-        # Generate mode
-        try:
-            index = build_reverse_index(base_dir)
-        except ValueError as e:
-            print(f"Failed to build index:\n{e}")
-            return 1
-        
-        output_file = write_reverse_index(base_dir, index)
-        print(f"Generated {output_file}")
-        return 0
+        output_path = data_dir / "generated" / "links.yaml"
+    
+    # Build the reverse index
+    try:
+        index = build_reverse_index(data_dir, include_empty=args.include_empty)
+    except ValueError as e:
+        print(f"Failed to build index:\n{e}")
+        return 1
+    
+    # Write the output file only if content changed
+    if write_reverse_index(output_path, index):
+        print(f"Generated {output_path}")
+    else:
+        print(f"{output_path} is up to date (no changes)")
+    
+    return 0
 
 
 if __name__ == "__main__":

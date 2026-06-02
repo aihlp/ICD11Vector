@@ -197,8 +197,37 @@ def main() -> int:
         base_dir = Path(sys.argv[1])
     else:
         base_dir = Path(__file__).parent.parent
-
+    
+    data_dir = base_dir / "data"
+    
     all_errors = validate_repository(base_dir)
+    
+    # Check if links.yaml exists and is up to date
+    links_file = data_dir / "generated" / "links.yaml"
+    if links_file.exists():
+        # Import locally to avoid mypy issues with scripts directory
+        import importlib.util
+        link_symptoms_path = Path(__file__).parent / "link_symptoms.py"
+        spec = importlib.util.spec_from_file_location("link_symptoms", link_symptoms_path)
+        if spec and spec.loader:
+            link_symptoms = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(link_symptoms)
+            
+            build_reverse_index = getattr(link_symptoms, "build_reverse_index")
+            load_yaml = getattr(link_symptoms, "load_yaml")
+            
+            try:
+                expected_index = build_reverse_index(data_dir)
+            except ValueError as e:
+                all_errors.append(str(e))
+            
+            try:
+                existing_index = load_yaml(links_file)
+            except Exception as e:
+                all_errors.append(f"data/generated/links.yaml failed to load: {e}")
+            
+            if expected_index != existing_index:
+                all_errors.append("data/generated/links.yaml is stale; run python scripts/link_symptoms.py")
 
     # Report results
     if all_errors:
