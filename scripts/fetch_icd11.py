@@ -65,7 +65,12 @@ def make_request(
         print(f"Total timeout exceeded ({TOTAL_TIMEOUT_HOURS}h)", file=sys.stderr)
         sys.exit(75)
 
-    headers = {"Authorization": f"Bearer {token}", "Accept-Language": "en"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Accept-Language": "en",
+        "API-Version": "v2",  # REQUIRED for WHO API v2
+    }
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -109,6 +114,41 @@ def fetch_release_date(session: requests.Session, token: str, start_time: float)
             # Endpoint doesn't exist, return None to skip release date check
             return None
         raise
+
+
+def get_latest_release(session: requests.Session, token: str, start_time: float) -> str:
+    """Get the latest MMS release ID (e.g., '2024-09')."""
+    url = "https://id.who.int/icd/release/11/mms"
+    data = make_request(session, url, token, start_time)
+    return data["latestRelease"]  # type: ignore[no-any-return]
+
+
+def get_mms_root(
+    session: requests.Session,
+    release_id: str,
+    token: str,
+    start_time: float,
+) -> dict[str, Any]:
+    """Get MMS linearization root with chapter URIs."""
+    url = f"https://id.who.int/icd/release/11/{release_id}/mms"
+    return make_request(session, url, token, start_time)
+
+
+def fetch_entity(
+    session: requests.Session,
+    release_id: str,
+    uri: str,
+    token: str,
+    start_time: float,
+) -> dict[str, Any]:
+    """Fetch a linearization entity by URI."""
+    # Extract numeric ID from URI
+    # e.g., "http://id.who.int/icd/release/11/mms/12345678" → "12345678"
+    numeric_id = uri.rstrip("/").split("/")[-1]
+    
+    # Use release-specific endpoint
+    url = f"https://id.who.int/icd/release/11/{release_id}/mms/{numeric_id}"
+    return make_request(session, url, token, start_time)
 
 
 def should_sync(data_dir: Path, release_date: str | None, force: bool = False) -> bool:
@@ -252,6 +292,35 @@ def fetch_foundation_entity(
     """Fetch a single foundation entity."""
     url = f"https://id.who.int/icd/entity/{entity_id}"
     return make_request(session, url, token, start_time)
+
+
+def process_mms_entity(
+    session: requests.Session,
+    release_id: str,
+    uri: str,
+    token: str,
+    start_time: float,
+    visited: set[str],
+) -> list[dict[str, Any]]:
+    """Process a single MMS entity and its children recursively.
+    
+    Returns a list of all processed entities.
+    """
+    if uri in visited:
+        return []
+    visited.add(uri)
+    
+    # Fetch full entity details
+    time.sleep(RATE_LIMIT_DELAY)  # Throttle
+    full_entity = fetch_entity(session, release_id, uri, token, start_time)
+    
+    result = [full_entity]
+    
+    # Process children (child is array of URIs)
+    for child_uri in full_entity.get("child", []):
+        result.extend(process_mms_entity(session, release_id, child_uri, token, start_time, visited))
+    
+    return result
 
 
 def extract_code_from_title(title: str) -> str:
@@ -431,19 +500,35 @@ def main(data_dir: Path, force: bool = False) -> int:
         processed_ids: set[str] = set(state.get("processed", []))
         pending_ids: list[str] = state.get("pending", [])
 
-        # Fetch linearisation tree
+        # Fetch linearisation tree using correct API v2 flow
         if not pending_ids:
-            with console.status("[bold green]Fetching MMS linearisation tree..."):
-                mms_url = "https://id.who.int/icd/release/11/mms"
-                tree = fetch_linearisation_tree(session, token, mms_url, start_time)
-            console.print(f"[green]Fetched {len(tree)} entities from tree.[/green]")
+            # Step 1: Get latest release ID
+            with console.status("[bold green]Fetching latest MMS release..."):
+                release_id = get_latest_release(session, token, start_time)
+            console.print(f"[green]✓ Latest release: {release_id}[/]")
+
+            # Step 2: Get MMS root with chapters
+            with console.status("[bold green]Fetching MMS root..."):
+                mms_root = get_mms_root(session, release_id, token, start_time)
+            chapters = mms_root.get("child", [])
+            console.print(f"[green]✓ Found {len(chapters)} chapters[/]")
+
+            # Step 3: Process each chapter recursively to build the full tree
+            visited: set[str] = set()
+            all_entities: list[dict[str, Any]] = []
+            
+            for chapter_uri in chapters:
+                entities = process_mms_entity(session, release_id, chapter_uri, token, start_time, visited)
+                all_entities.extend(entities)
+            
+            console.print(f"[green]✓ Fetched {len(all_entities)} entities from tree.[/green]")
 
             # Extract disease categories
-            categories = extract_disease_categories(tree)
+            categories = extract_disease_categories(all_entities)
             console.print(f"[green]Found {len(categories)} disease categories.[/green]")
 
             # Collect foundation references
-            foundation_ids = collect_foundation_refs(tree)
+            foundation_ids = collect_foundation_refs(all_entities)
             console.print(f"[green]Found {len(foundation_ids)} foundation entity references.[/green]")
 
             # Build pending list: diseases first, then foundation
