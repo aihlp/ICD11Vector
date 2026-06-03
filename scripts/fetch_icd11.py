@@ -117,37 +117,35 @@ def fetch_release_date(session: requests.Session, token: str, start_time: float)
 
 
 def get_latest_release(session: requests.Session, token: str, start_time: float) -> str:
-    """Get the latest MMS release ID (e.g., '2024-09')."""
+    """Get the latest MMS release URI."""
     url = "https://id.who.int/icd/release/11/mms"
     data = make_request(session, url, token, start_time)
+    # Returns full URI like "http://id.who.int/icd/release/11/2026-01/mms"
     return data["latestRelease"]  # type: ignore[no-any-return]
 
 
 def get_mms_root(
     session: requests.Session,
-    release_id: str,
+    release_uri: str,
     token: str,
     start_time: float,
 ) -> dict[str, Any]:
     """Get MMS linearization root with chapter URIs."""
-    url = f"https://id.who.int/icd/release/11/{release_id}/mms"
+    # Use the full URI directly from API response
+    # Convert http:// to https:// for consistency
+    url = release_uri.replace("http://", "https://")
     return make_request(session, url, token, start_time)
 
 
 def fetch_entity(
     session: requests.Session,
-    release_id: str,
-    uri: str,
+    entity_uri: str,
     token: str,
     start_time: float,
 ) -> dict[str, Any]:
     """Fetch a linearization entity by URI."""
-    # Extract numeric ID from URI
-    # e.g., "http://id.who.int/icd/release/11/mms/12345678" → "12345678"
-    numeric_id = uri.rstrip("/").split("/")[-1]
-    
-    # Use release-specific endpoint
-    url = f"https://id.who.int/icd/release/11/{release_id}/mms/{numeric_id}"
+    # Convert http:// to https:// for consistency
+    url = entity_uri.replace("http://", "https://")
     return make_request(session, url, token, start_time)
 
 
@@ -296,7 +294,6 @@ def fetch_foundation_entity(
 
 def process_mms_entity(
     session: requests.Session,
-    release_id: str,
     uri: str,
     token: str,
     start_time: float,
@@ -310,15 +307,15 @@ def process_mms_entity(
         return []
     visited.add(uri)
     
-    # Fetch full entity details
+    # Fetch full entity details using the URI directly
     time.sleep(RATE_LIMIT_DELAY)  # Throttle
-    full_entity = fetch_entity(session, release_id, uri, token, start_time)
+    full_entity = fetch_entity(session, uri, token, start_time)
     
     result = [full_entity]
     
     # Process children (child is array of URIs)
     for child_uri in full_entity.get("child", []):
-        result.extend(process_mms_entity(session, release_id, child_uri, token, start_time, visited))
+        result.extend(process_mms_entity(session, child_uri, token, start_time, visited))
     
     return result
 
@@ -502,14 +499,14 @@ def main(data_dir: Path, force: bool = False) -> int:
 
         # Fetch linearisation tree using correct API v2 flow
         if not pending_ids:
-            # Step 1: Get latest release ID
+            # Step 1: Get latest release URI
             with console.status("[bold green]Fetching latest MMS release..."):
-                release_id = get_latest_release(session, token, start_time)
-            console.print(f"[green]✓ Latest release: {release_id}[/]")
+                release_uri = get_latest_release(session, token, start_time)
+            console.print(f"[green]✓ Latest release: {release_uri}[/]")
 
-            # Step 2: Get MMS root with chapters
+            # Step 2: Get MMS root with chapters (use URI directly)
             with console.status("[bold green]Fetching MMS root..."):
-                mms_root = get_mms_root(session, release_id, token, start_time)
+                mms_root = get_mms_root(session, release_uri, token, start_time)
             chapters = mms_root.get("child", [])
             console.print(f"[green]✓ Found {len(chapters)} chapters[/]")
 
@@ -518,7 +515,7 @@ def main(data_dir: Path, force: bool = False) -> int:
             all_entities: list[dict[str, Any]] = []
             
             for chapter_uri in chapters:
-                entities = process_mms_entity(session, release_id, chapter_uri, token, start_time, visited)
+                entities = process_mms_entity(session, chapter_uri, token, start_time, visited)
                 all_entities.extend(entities)
             
             console.print(f"[green]✓ Fetched {len(all_entities)} entities from tree.[/green]")
