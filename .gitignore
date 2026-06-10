@@ -1,17 +1,10 @@
 ```
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Testing
+# Test cache
 .pytest_cache/
-.coverage
-coverage/
-htmlcov/
-
-# Logs and temp files
-*.log
-*.tmp
 ```
