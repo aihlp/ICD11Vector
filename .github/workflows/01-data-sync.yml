@@ -2,9 +2,14 @@ name: 01-Data Sync
 
 on:
   schedule:
-    # Daily at 00:00 UTC
-    - cron: '0 0 * * *'
+    # Every 30 minutes to chew through the queue
+    - cron: '*/30 * * * *'
   workflow_dispatch:      # Manual trigger with --force
+    inputs:
+      force_full_sync:
+        description: 'Force full re-sync (clears database first)'
+        required: false
+        default: 'false'
 
 concurrency:
   group: icd11-data-sync
@@ -28,21 +33,22 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
-      - name: Run ICD-11 sync (writes to SQLite)
+      - name: Force clear database (if requested)
+        if: github.event.inputs.force_full_sync == 'true'
+        run: |
+          rm -f data/db/sync_state.db
+          echo "Database cleared for full re-sync"
+
+      - name: Run WHO ICD-11 iterative sync (processes batch of 500 nodes)
         env:
           ICD_CLIENT_ID: ${{ secrets.ICD_CLIENT_ID }}
           ICD_CLIENT_SECRET: ${{ secrets.ICD_CLIENT_SECRET }}
         run: |
-          # Use --force for manual triggers to ensure full sync
-          FORCE_FLAG=""
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            FORCE_FLAG="--force"
-          fi
-          python scripts/fetch_icd11.py --data-dir data $FORCE_FLAG
+          python src/fetchers/who_client.py --data-dir data
 
       - name: Commit and push SQLite state
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: auto-commit sync_state.db after ICD-11 sync"
+          commit_message: "chore: auto-commit sync_state.db after WHO ICD-11 batch sync"
           file_pattern: "data/db/sync_state.db"
           branch: ${{ github.ref_name }}
