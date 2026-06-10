@@ -1,0 +1,48 @@
+name: 01-Data Sync
+
+on:
+  schedule:
+    # Daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:      # Manual trigger with --force
+
+concurrency:
+  group: icd11-data-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run ICD-11 sync (writes to SQLite)
+        env:
+          ICD_CLIENT_ID: ${{ secrets.ICD_CLIENT_ID }}
+          ICD_CLIENT_SECRET: ${{ secrets.ICD_CLIENT_SECRET }}
+        run: |
+          # Use --force for manual triggers to ensure full sync
+          FORCE_FLAG=""
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            FORCE_FLAG="--force"
+          fi
+          python scripts/fetch_icd11.py --data-dir data $FORCE_FLAG
+
+      - name: Commit and push SQLite state
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-commit sync_state.db after ICD-11 sync"
+          file_pattern: "data/db/sync_state.db"
+          branch: ${{ github.ref_name }}
