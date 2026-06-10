@@ -57,8 +57,14 @@ def make_request(
     url: str,
     token: str,
     start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> dict[str, Any]:
-    """Make an authenticated request with rate limiting and retries."""
+    """Make an authenticated request with rate limiting and retries.
+    
+    Implements reactive token refresh: on HTTP 401, automatically obtains
+    a new token and retries the request. Max 3 retries to prevent infinite loops.
+    """
     # Check total timeout
     elapsed_hours = (time.time() - start_time) / 3600
     if elapsed_hours > TOTAL_TIMEOUT_HOURS:
@@ -72,42 +78,54 @@ def make_request(
         "API-Version": "v2",  # REQUIRED for WHO API v2
     }
 
+    # Track 401 retries separately from other retries
+    auth_retry_count = 0
+    max_auth_retries = 3
+
     for attempt in range(MAX_RETRIES):
-        try:
-            time.sleep(RATE_LIMIT_DELAY)
-            resp = session.get(url, headers=headers, timeout=30)
+        time.sleep(RATE_LIMIT_DELAY)
+        resp = session.get(url, headers=headers, timeout=30)
 
-            if resp.status_code == 401:
-                # Token expired, get new one (caller must handle this)
-                raise requests.HTTPError("401 Unauthorized - token expired")
+        if resp.status_code == 401:
+            # Token expired - attempt reactive refresh if credentials available
+            auth_retry_count += 1
+            if auth_retry_count > max_auth_retries or not client_id or not client_secret:
+                raise requests.HTTPError("401 Unauthorized - token refresh failed or credentials unavailable")
+            
+            # Get fresh token
+            new_token = get_token(session, client_id, client_secret)
+            headers["Authorization"] = f"Bearer {new_token}"
+            # Retry immediately with new token (don't count against MAX_RETRIES)
+            continue
 
-            if resp.status_code == 429:
-                # Rate limited - wait and retry
-                retry_after = int(resp.headers.get("Retry-After", 2**attempt))
-                time.sleep(retry_after)
-                continue
+        if resp.status_code == 429:
+            # Rate limited - wait and retry
+            retry_after = int(resp.headers.get("Retry-After", 2**attempt))
+            time.sleep(retry_after)
+            continue
 
-            if resp.status_code >= 500:
-                # Server error - exponential backoff
-                time.sleep(2**attempt)
-                continue
-
-            resp.raise_for_status()
-            return resp.json()  # type: ignore[no-any-return]
-
-        except requests.RequestException:
-            if attempt == MAX_RETRIES - 1:
-                raise
+        if resp.status_code >= 500:
+            # Server error - exponential backoff
             time.sleep(2**attempt)
+            continue
+
+        resp.raise_for_status()
+        return resp.json()  # type: ignore[no-any-return]
 
     raise RuntimeError("Max retries exceeded")
 
 
-def fetch_release_date(session: requests.Session, token: str, start_time: float) -> str | None:
+def fetch_release_date(
+    session: requests.Session,
+    token: str,
+    start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> str | None:
     """Fetch the release date of ICD-11."""
     url = "https://id.who.int/icd/release/11"
     try:
-        data = make_request(session, url, token, start_time)
+        data = make_request(session, url, token, start_time, client_id, client_secret)
         return data.get("releaseDate", "")  # type: ignore[no-any-return]
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
@@ -116,10 +134,16 @@ def fetch_release_date(session: requests.Session, token: str, start_time: float)
         raise
 
 
-def get_latest_release(session: requests.Session, token: str, start_time: float) -> str:
+def get_latest_release(
+    session: requests.Session,
+    token: str,
+    start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> str:
     """Get the latest MMS release URI."""
     url = "https://id.who.int/icd/release/11/mms"
-    data = make_request(session, url, token, start_time)
+    data = make_request(session, url, token, start_time, client_id, client_secret)
     # Returns full URI like "http://id.who.int/icd/release/11/2026-01/mms"
     return data["latestRelease"]  # type: ignore[no-any-return]
 
@@ -129,12 +153,14 @@ def get_mms_root(
     release_uri: str,
     token: str,
     start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> dict[str, Any]:
     """Get MMS linearization root with chapter URIs."""
     # Use the full URI directly from API response
     # Convert http:// to https:// for consistency
     url = release_uri.replace("http://", "https://")
-    return make_request(session, url, token, start_time)
+    return make_request(session, url, token, start_time, client_id, client_secret)
 
 
 def fetch_entity(
@@ -142,11 +168,13 @@ def fetch_entity(
     entity_uri: str,
     token: str,
     start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> dict[str, Any]:
     """Fetch a linearization entity by URI."""
     # Convert http:// to https:// for consistency
     url = entity_uri.replace("http://", "https://")
-    return make_request(session, url, token, start_time)
+    return make_request(session, url, token, start_time, client_id, client_secret)
 
 
 def should_sync(data_dir: Path, release_date: str | None, force: bool = False) -> bool:
@@ -220,11 +248,13 @@ def fetch_linearisation_tree(
     url: str,
     start_time: float,
     children_key: str = "child",
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> list[dict[str, Any]]:
     """Recursively fetch the linearisation tree."""
     result: list[dict[str, Any]] = []
 
-    data = make_request(session, url, token, start_time)
+    data = make_request(session, url, token, start_time, client_id, client_secret)
 
     # Process current level
     items = data.get(children_key, [])
@@ -286,10 +316,12 @@ def fetch_foundation_entity(
     token: str,
     entity_id: str,
     start_time: float,
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> dict[str, Any]:
     """Fetch a single foundation entity."""
     url = f"https://id.who.int/icd/entity/{entity_id}"
-    return make_request(session, url, token, start_time)
+    return make_request(session, url, token, start_time, client_id, client_secret)
 
 
 def process_mms_entity(
@@ -298,6 +330,8 @@ def process_mms_entity(
     token: str,
     start_time: float,
     visited: set[str],
+    client_id: str | None = None,
+    client_secret: str | None = None,
 ) -> list[dict[str, Any]]:
     """Process a single MMS entity and its children recursively.
     
@@ -309,13 +343,13 @@ def process_mms_entity(
     
     # Fetch full entity details using the URI directly
     time.sleep(RATE_LIMIT_DELAY)  # Throttle
-    full_entity = fetch_entity(session, uri, token, start_time)
+    full_entity = fetch_entity(session, uri, token, start_time, client_id, client_secret)
     
     result = [full_entity]
     
     # Process children (child is array of URIs)
     for child_uri in full_entity.get("child", []):
-        result.extend(process_mms_entity(session, child_uri, token, start_time, visited))
+        result.extend(process_mms_entity(session, child_uri, token, start_time, visited, client_id, client_secret))
     
     return result
 
@@ -478,7 +512,7 @@ def main(data_dir: Path, force: bool = False) -> int:
 
         # Fetch release date
         with console.status("[bold green]Fetching release date..."):
-            release_date = fetch_release_date(session, token, start_time)
+            release_date = fetch_release_date(session, token, start_time, client_id, client_secret)
         console.print(f"[green]Release date: {release_date}[/green]")
 
         # Check if sync needed
@@ -501,12 +535,12 @@ def main(data_dir: Path, force: bool = False) -> int:
         if not pending_ids:
             # Step 1: Get latest release URI
             with console.status("[bold green]Fetching latest MMS release..."):
-                release_uri = get_latest_release(session, token, start_time)
+                release_uri = get_latest_release(session, token, start_time, client_id, client_secret)
             console.print(f"[green]✓ Latest release: {release_uri}[/]")
 
             # Step 2: Get MMS root with chapters (use URI directly)
             with console.status("[bold green]Fetching MMS root..."):
-                mms_root = get_mms_root(session, release_uri, token, start_time)
+                mms_root = get_mms_root(session, release_uri, token, start_time, client_id, client_secret)
             chapters = mms_root.get("child", [])
             console.print(f"[green]✓ Found {len(chapters)} chapters[/]")
 
@@ -515,7 +549,7 @@ def main(data_dir: Path, force: bool = False) -> int:
             all_entities: list[dict[str, Any]] = []
             
             for chapter_uri in chapters:
-                entities = process_mms_entity(session, chapter_uri, token, start_time, visited)
+                entities = process_mms_entity(session, chapter_uri, token, start_time, visited, client_id, client_secret)
                 all_entities.extend(entities)
             
             console.print(f"[green]✓ Fetched {len(all_entities)} entities from tree.[/green]")
@@ -566,7 +600,7 @@ def main(data_dir: Path, force: bool = False) -> int:
 
                     # Fetch the entity
                     try:
-                        entity_data = make_request(session, entity_uri, token, start_time)
+                        entity_data = make_request(session, entity_uri, token, start_time, client_id, client_secret)
                         output_path = mms_dir / f"{extract_code_from_title(entity_data.get('title', ''))}.yaml"
                         if write_disease_yaml(entity_data, output_path):
                             files_written += 1
@@ -582,7 +616,7 @@ def main(data_dir: Path, force: bool = False) -> int:
 
                     try:
                         entity_data = fetch_foundation_entity(
-                            session, token, entity_id, start_time
+                            session, token, entity_id, start_time, client_id, client_secret
                         )
                         output_path = foundation_dir / f"{entity_id}.yaml"
                         if write_foundation_yaml(entity_data, output_path):
