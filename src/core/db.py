@@ -87,6 +87,27 @@ def insert_pending_node_ignore(
     conn.commit()
 
 
+def insert_pending_nodes_bulk_ignore(
+    conn: sqlite3.Connection,
+    uris: list[str],
+    status: str = "PENDING",
+) -> int:
+    """Bulk insert nodes with IGNORE (skip if exists). Reduces disk I/O significantly.
+    
+    Returns the number of rows actually inserted (excluding duplicates).
+    """
+    cursor = conn.cursor()
+    # Prepare data for executemany
+    data = [(uri, status) for uri in uris]
+    cursor.executemany("""
+        INSERT OR IGNORE INTO icd_nodes_state (uri, status)
+        VALUES (?, ?)
+    """, data)
+    conn.commit()
+    # Return number of rows affected (inserted, not ignored)
+    return cursor.rowcount
+
+
 def get_nodes_by_status(conn: sqlite3.Connection, status: str, limit: int = 500) -> list[sqlite3.Row]:
     """Get nodes with a specific status, limited for batch processing."""
     cursor = conn.cursor()
