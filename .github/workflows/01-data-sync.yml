@@ -2,8 +2,9 @@ name: 01-Data Sync
 
 on:
   schedule:
-    # Every 30 minutes to chew through the queue
-    - cron: '*/30 * * * *'
+    # Every 10 minutes to maximize throughput (2500 nodes per batch)
+    # At ~85k nodes total, this completes in approximately 6 hours of cumulative compute time
+    - cron: '*/10 * * * *'
   workflow_dispatch:      # Manual trigger with --force
     inputs:
       force_full_sync:
@@ -39,7 +40,7 @@ jobs:
           rm -f data/db/sync_state.db
           echo "Database cleared for full re-sync"
 
-      - name: Run WHO ICD-11 iterative sync (processes batch of 500 nodes)
+      - name: Run WHO ICD-11 async sync (processes batch of 2500 nodes)
         env:
           ICD_CLIENT_ID: ${{ secrets.ICD_CLIENT_ID }}
           ICD_CLIENT_SECRET: ${{ secrets.ICD_CLIENT_SECRET }}
