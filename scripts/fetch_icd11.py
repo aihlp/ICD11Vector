@@ -204,8 +204,18 @@ def should_sync(data_dir: Path, release_date: str | None, force: bool = False) -
                 return True
         return True  # No metadata file yet
     
-    # If release_date is None/empty but data exists, skip sync
-    # (WHO API doesn't provide reliable update info)
+    # If release_date couldn't be fetched, still allow sync
+    # This handles cases where WHO API endpoint is temporarily unavailable
+    # Check if we have any existing data
+    mms_dir = data_dir / "mms"
+    foundation_dir = data_dir / "foundation"
+    
+    # If no data exists at all, we should sync
+    if not mms_dir.exists() or not foundation_dir.exists():
+        return True
+    
+    # If data exists but release_date is unavailable, skip only if not forced
+    # (manual intervention may be needed)
     return False
 
 
@@ -515,10 +525,18 @@ def main(data_dir: Path, force: bool = False) -> int:
             token = get_token(session, client_id, client_secret)
         console.print("[green]Token obtained.[/green]")
 
-        # Fetch release date
-        with console.status("[bold green]Fetching release date..."):
-            release_date = fetch_release_date(session, token, start_time, client_id, client_secret)
-        console.print(f"[green]Release date: {release_date}[/green]")
+        # Fetch release date (non-blocking - sync proceeds even if unavailable)
+        release_date: str | None = None
+        try:
+            with console.status("[bold green]Fetching release date..."):
+                release_date = fetch_release_date(session, token, start_time, client_id, client_secret)
+            if release_date:
+                console.print(f"[green]Release date: {release_date}[/green]")
+            else:
+                console.print("[yellow]Release date not available from API. Proceeding with sync...[/yellow]")
+        except Exception as e:
+            console.print(f"[yellow]Could not fetch release date: {e}. Proceeding with sync...[/yellow]")
+            release_date = None
 
         # Check if sync needed
         if not should_sync(data_dir, release_date, force):
