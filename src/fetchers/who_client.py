@@ -362,24 +362,45 @@ async def main_async(data_dir: Path) -> int:
             if is_db_empty(conn):
                 console.print("[yellow]Database empty - seeding initial queue...[/yellow]")
                 
-                # Fetch the MMS root to get chapter URIs
+                # Fetch the MMS root to get the latest release URI
                 semaphore = asyncio.Semaphore(1)
                 async with aiohttp.ClientSession() as seed_session:
                     _, root_data = await fetch_node_data_async(seed_session, ICD11_ROOT_URI, token, semaphore)
                 
                 if root_data:
-                    chapter_uris = extract_child_uris(root_data)
+                    # Extract latestRelease URI and fetch that version to get chapters
+                    latest_release_uri = root_data.get("latestRelease", "")
                     
-                    if not chapter_uris:
-                        # Fallback: insert the root URI itself
-                        console.print("[yellow]No chapters found, inserting root URI[/yellow]")
+                    if latest_release_uri:
+                        console.print(f"[blue]Fetching latest release: {latest_release_uri}[/blue]")
+                        # Convert to https
+                        latest_release_uri = latest_release_uri.replace("http://", "https://")
+                        
+                        # Fetch the specific release to get chapter URIs
+                        _, release_data = await fetch_node_data_async(seed_session, latest_release_uri, token, semaphore)
+                        
+                        if release_data:
+                            chapter_uris = extract_child_uris(release_data)
+                            
+                            if not chapter_uris:
+                                # Fallback: insert the release URI itself
+                                console.print("[yellow]No chapters found, inserting release URI[/yellow]")
+                                from core.db import insert_pending_node_ignore
+                                insert_pending_node_ignore(conn, latest_release_uri, "PENDING")
+                            else:
+                                console.print(f"[green]Found {len(chapter_uris)} top-level chapters[/green]")
+                                insert_pending_nodes_bulk_ignore(conn, chapter_uris, "PENDING")
+                            
+                            console.print(f"[green]Queue seeded with {count_nodes_by_status(conn, 'PENDING')} pending nodes[/green]")
+                        else:
+                            # Fallback: insert release URI directly
+                            from core.db import insert_pending_node_ignore
+                            insert_pending_node_ignore(conn, latest_release_uri, "PENDING")
+                    else:
+                        # No latestRelease found, fallback to root URI
+                        console.print("[yellow]No latestRelease found, using root URI[/yellow]")
                         from core.db import insert_pending_node_ignore
                         insert_pending_node_ignore(conn, ICD11_ROOT_URI, "PENDING")
-                    else:
-                        console.print(f"[green]Found {len(chapter_uris)} top-level chapters[/green]")
-                        insert_pending_nodes_bulk_ignore(conn, chapter_uris, "PENDING")
-                    
-                    console.print(f"[green]Queue seeded with {count_nodes_by_status(conn, 'PENDING')} pending nodes[/green]")
                 else:
                     # Fallback: insert root URI directly
                     from core.db import insert_pending_node_ignore
