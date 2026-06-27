@@ -257,6 +257,102 @@ def save_metadata(data_dir: Path, release_date: str) -> None:
         json.dump(metadata, f, indent=2)
 
 
+def fetch_linearisation_tree_bfs(
+    session: requests.Session,
+    token: str,
+    root_url: str,
+    start_time: float,
+    mms_dir: Path,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+) -> set[str]:
+    """Iteratively fetch the linearisation tree using BFS.
+    
+    This replaces the recursive approach to handle trees of any depth without stack overflow.
+    Writes disease YAML files incrementally during traversal.
+    
+    Returns:
+        Set of foundation entity IDs referenced in the tree.
+    """
+    from collections import deque
+    
+    visited: set[str] = set()
+    foundation_ids: set[str] = set()
+    queue: deque[str] = deque([root_url])
+    processed_count = 0
+    
+    while queue:
+        # Check timeout
+        elapsed_hours = (time.time() - start_time) / 3600
+        if elapsed_hours > TOTAL_TIMEOUT_HOURS:
+            print(f"Total timeout exceeded ({TOTAL_TIMEOUT_HOURS}h) during BFS traversal", file=sys.stderr)
+            sys.exit(75)
+        
+        current_url = queue.popleft()
+        
+        # Skip if already visited
+        if current_url in visited:
+            continue
+        visited.add(current_url)
+        
+        # Fetch entity
+        time.sleep(RATE_LIMIT_DELAY)
+        try:
+            entity = make_request(session, current_url, token, start_time, client_id, client_secret)
+        except Exception as e:
+            print(f"Error fetching {current_url}: {e}", file=sys.stderr)
+            continue
+        
+        # Process entity - write disease YAML if it's a category
+        class_kind = entity.get("classKind", "")
+        if class_kind == "category":
+            output_path = mms_dir / f"{extract_code_from_title(entity.get('title', ''))}.yaml"
+            if write_disease_yaml(entity, output_path):
+                processed_count += 1
+        
+        # Collect foundation references from this entity
+        extract_foundation_refs_from_entity(entity, foundation_ids)
+        
+        # Add children to queue
+        child_uris = entity.get("child", [])
+        for child_uri in child_uris:
+            if isinstance(child_uri, str) and child_uri not in visited:
+                queue.append(child_uri)
+            elif isinstance(child_uri, dict):
+                child_id = child_uri.get("@id", "")
+                if child_id and child_id not in visited:
+                    queue.append(child_id)
+    
+    return foundation_ids
+
+
+def extract_foundation_refs_from_entity(entity: dict[str, Any], foundation_ids: set[str]) -> None:
+    """Extract foundation entity references from a single entity and add to set.
+    
+    Iterative approach to avoid recursion depth issues.
+    """
+    stack: list[Any] = [entity]
+    
+    while stack:
+        obj = stack.pop()
+        
+        if isinstance(obj, dict):
+            # Look for @id fields that point to foundation entities
+            entity_id = obj.get("@id", "")
+            if entity_id and "/entity/" in entity_id:
+                parts = entity_id.split("/entity/")
+                if len(parts) > 1:
+                    foundation_ids.add(parts[-1])
+            
+            # Add nested values to stack
+            for value in obj.values():
+                stack.append(value)
+        
+        elif isinstance(obj, list):
+            for item in obj:
+                stack.append(item)
+
+
 def fetch_linearisation_tree(
     session: requests.Session,
     token: str,
@@ -266,7 +362,7 @@ def fetch_linearisation_tree(
     client_id: str | None = None,
     client_secret: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Recursively fetch the linearisation tree."""
+    """Recursively fetch the linearisation tree (DEPRECATED - use BFS version)."""
     result: list[dict[str, Any]] = []
 
     data = make_request(session, url, token, start_time, client_id, client_secret)
@@ -501,7 +597,13 @@ def write_foundation_yaml(entity: dict[str, Any], output_path: Path) -> bool:
 
 
 def main(data_dir: Path, force: bool = False) -> int:
-    """Main entry point."""
+    """Main entry point.
+    
+    Sync Strategy:
+    - Phase 1: BFS traversal of MMS tree with incremental disease YAML writes
+    - Phase 2: Process foundation entities separately
+    - Checkpoint/resume support via state file
+    """
     # Check credentials - use ICD_CLIENT_ID and ICD_CLIENT_SECRET as per requirements
     client_id = os.environ.get("ICD_CLIENT_ID", "")
     client_secret = os.environ.get("ICD_CLIENT_SECRET", "")
@@ -552,10 +654,19 @@ def main(data_dir: Path, force: bool = False) -> int:
         # Load state for resume
         state = load_state(data_dir)
         processed_ids: set[str] = set(state.get("processed", []))
-        pending_ids: list[str] = state.get("pending", [])
+        pending_foundation: list[str] = state.get("pending_foundation", [])
+        bfs_complete = state.get("bfs_complete", False)
 
-        # Fetch linearisation tree using correct API v2 flow
-        if not pending_ids:
+        # Setup directories
+        mms_dir = data_dir / "mms"
+        foundation_dir = data_dir / "foundation"
+        mms_dir.mkdir(parents=True, exist_ok=True)
+        foundation_dir.mkdir(parents=True, exist_ok=True)
+
+        # Phase 1: BFS traversal of MMS tree (disease entities)
+        if not bfs_complete:
+            console.print("[bold blue]Phase 1: BFS traversal of MMS tree...[/bold blue]")
+            
             # Step 1: Get latest release URI
             with console.status("[bold green]Fetching latest MMS release..."):
                 release_uri = get_latest_release(session, token, start_time, client_id, client_secret)
@@ -567,36 +678,32 @@ def main(data_dir: Path, force: bool = False) -> int:
             chapters = mms_root.get("child", [])
             console.print(f"[green]✓ Found {len(chapters)} chapters[/]")
 
-            # Step 3: Process each chapter recursively to build the full tree
-            visited: set[str] = set()
-            all_entities: list[dict[str, Any]] = []
+            # Step 3: BFS traversal - processes each chapter iteratively
+            # Disease YAML files are written incrementally during traversal
+            all_foundation_ids: set[str] = set()
             
-            for chapter_uri in chapters:
-                entities = process_mms_entity(session, chapter_uri, token, start_time, visited, client_id, client_secret)
-                all_entities.extend(entities)
+            for i, chapter_uri in enumerate(chapters):
+                console.print(f"[blue]Processing chapter {i+1}/{len(chapters)}...[/blue]")
+                foundation_ids = fetch_linearisation_tree_bfs(
+                    session, token, chapter_uri, start_time, mms_dir, client_id, client_secret
+                )
+                all_foundation_ids.update(foundation_ids)
             
-            console.print(f"[green]✓ Fetched {len(all_entities)} entities from tree.[/green]")
+            console.print(f"[green]✓ MMS tree traversal complete. Found {len(all_foundation_ids)} foundation references.[/green]")
+            
+            # Build foundation pending list
+            pending_foundation = [fid for fid in all_foundation_ids if f"foundation:{fid}" not in processed_ids]
+            
+            # Mark BFS as complete
+            bfs_complete = True
+            state["bfs_complete"] = True
+            state["pending_foundation"] = pending_foundation
+            state["processed"] = list(processed_ids)
+            save_state(data_dir, state)
 
-            # Extract disease categories
-            categories = extract_disease_categories(all_entities)
-            console.print(f"[green]Found {len(categories)} disease categories.[/green]")
-
-            # Collect foundation references
-            foundation_ids = collect_foundation_refs(all_entities)
-            console.print(f"[green]Found {len(foundation_ids)} foundation entity references.[/green]")
-
-            # Build pending list: diseases first, then foundation
-            pending_ids = [f"disease:{c.get('@id', '')}" for c in categories]
-            pending_ids.extend([f"foundation:{fid}" for fid in foundation_ids])
-
-            # Remove already processed
-            pending_ids = [pid for pid in pending_ids if pid not in processed_ids]
-            console.print(f"[green]{len(pending_ids)} entities remaining to process.[/green]")
-
-        # Process pending entities
-        mms_dir = data_dir / "mms"
-        foundation_dir = data_dir / "foundation"
-
+        # Phase 2: Process foundation entities
+        console.print("[bold blue]Phase 2: Processing foundation entities...[/bold blue]")
+        
         files_written = 0
         files_skipped = 0
         processed_count = 0
@@ -606,65 +713,47 @@ def main(data_dir: Path, force: bool = False) -> int:
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            task = progress.add_task("Processing...", total=len(pending_ids))
+            task = progress.add_task("Processing foundation...", total=len(pending_foundation))
             
-            for pending_id in pending_ids[:]:
+            for entity_id in pending_foundation[:]:
                 # Check timeout periodically
                 if (time.time() - start_time) / 3600 > TOTAL_TIMEOUT_HOURS:
-                    console.print(f"[yellow]Timeout reached. Saved state with {len(pending_ids)} remaining.[/yellow]")
-                    state["pending"] = pending_ids
+                    console.print(f"[yellow]Timeout reached. Saved state with {len(pending_foundation)} remaining.[/yellow]")
+                    state["pending_foundation"] = pending_foundation
                     state["processed"] = list(processed_ids)
                     save_state(data_dir, state)
                     return 75
 
-                if pending_id.startswith("disease:"):
-                    entity_uri = pending_id[8:]
-                    progress.update(task, description=f"Processing disease: {entity_uri[-20:]}")
+                progress.update(task, description=f"Processing foundation: {entity_id}")
 
-                    # Fetch the entity
-                    try:
-                        entity_data = make_request(session, entity_uri, token, start_time, client_id, client_secret)
-                        output_path = mms_dir / f"{extract_code_from_title(entity_data.get('title', ''))}.yaml"
-                        if write_disease_yaml(entity_data, output_path):
-                            files_written += 1
-                        else:
-                            files_skipped += 1
-                    except Exception as e:
-                        console.print(f"[red]Error processing {entity_uri}: {e}[/red]")
-                        continue
+                try:
+                    entity_data = fetch_foundation_entity(
+                        session, token, entity_id, start_time, client_id, client_secret
+                    )
+                    output_path = foundation_dir / f"{entity_id}.yaml"
+                    if write_foundation_yaml(entity_data, output_path):
+                        files_written += 1
+                    else:
+                        files_skipped += 1
+                except Exception as e:
+                    console.print(f"[red]Error processing {entity_id}: {e}[/red]")
+                    continue
 
-                elif pending_id.startswith("foundation:"):
-                    entity_id = pending_id[11:]
-                    progress.update(task, description=f"Processing foundation: {entity_id}")
-
-                    try:
-                        entity_data = fetch_foundation_entity(
-                            session, token, entity_id, start_time, client_id, client_secret
-                        )
-                        output_path = foundation_dir / f"{entity_id}.yaml"
-                        if write_foundation_yaml(entity_data, output_path):
-                            files_written += 1
-                        else:
-                            files_skipped += 1
-                    except Exception as e:
-                        console.print(f"[red]Error processing {entity_id}: {e}[/red]")
-                        continue
-
-                processed_ids.add(pending_id)
-                pending_ids.remove(pending_id)
+                processed_ids.add(f"foundation:{entity_id}")
+                pending_foundation.remove(entity_id)
                 processed_count += 1
                 progress.advance(task)
 
                 # Save state periodically (every 10 entities)
                 if processed_count % 10 == 0:
-                    state["pending"] = pending_ids
+                    state["pending_foundation"] = pending_foundation
                     state["processed"] = list(processed_ids)
                     save_state(data_dir, state)
 
         # Clear state on success
         clear_state(data_dir)
 
-        console.print(f"[green]Sync complete. Processed {processed_count} entities.[/green]")
+        console.print(f"[green]Sync complete. Processed {processed_count} foundation entities.[/green]")
         console.print(f"[green]Files written: {files_written}, Files skipped (unchanged): {files_skipped}[/green]")
         return 0
 
