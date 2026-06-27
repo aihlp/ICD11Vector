@@ -24,6 +24,7 @@ from fetch_icd11 import (
     extract_code_from_title,
     write_disease_yaml,
     write_foundation_yaml,
+    extract_foundation_refs_from_entity,
 )
 
 
@@ -188,6 +189,66 @@ class TestCollectFoundationRefs:
         tree = [{"title": "No refs"}]
         refs = collect_foundation_refs(tree)
         assert refs == set()
+
+
+class TestExtractFoundationRefsFromEntity:
+    """Test iterative foundation reference extraction from single entity."""
+
+    def test_extract_refs_simple(self):
+        """Test extracting refs from simple entity."""
+        entity = {
+            "@id": "http://id.who.int/icd/entity/123",
+            "title": "Disease A",
+        }
+        foundation_ids: set[str] = set()
+        extract_foundation_refs_from_entity(entity, foundation_ids)
+        assert foundation_ids == {"123"}
+
+    def test_extract_refs_nested(self):
+        """Test extracting refs from nested structures."""
+        entity = {
+            "@id": "http://id.who.int/icd/entity/123",
+            "note": [
+                {
+                    "value": "caused by",
+                    "causalAgent": {
+                        "@id": "http://id.who.int/icd/entity/456"
+                    },
+                }
+            ],
+            "manifestation": {"@id": "http://id.who.int/icd/entity/789"},
+        }
+        foundation_ids: set[str] = set()
+        extract_foundation_refs_from_entity(entity, foundation_ids)
+        assert foundation_ids == {"123", "456", "789"}
+
+    def test_extract_refs_deep_nesting(self):
+        """Test extracting refs from deeply nested structures (iterative)."""
+        entity = {
+            "@id": "http://id.who.int/icd/entity/1",
+            "level1": {
+                "level2": {
+                    "level3": {
+                        "level4": {
+                            "@id": "http://id.who.int/icd/entity/999"
+                        }
+                    }
+                }
+            }
+        }
+        foundation_ids: set[str] = set()
+        extract_foundation_refs_from_entity(entity, foundation_ids)
+        assert foundation_ids == {"1", "999"}
+
+    def test_extract_refs_no_refs(self):
+        """Test entity without foundation refs."""
+        entity = {
+            "title": "No refs here",
+            "child": ["uri1", "uri2"],
+        }
+        foundation_ids: set[str] = set()
+        extract_foundation_refs_from_entity(entity, foundation_ids)
+        assert foundation_ids == set()
 
 
 class TestExtractCodeFromTitle:
