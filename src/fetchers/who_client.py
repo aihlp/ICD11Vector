@@ -258,6 +258,10 @@ async def process_batch_async(
     # Create semaphore to limit concurrent requests
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
     
+    # Track progress for checkpoint logging
+    successful_fetches = 0
+    failed_fetches = 0
+    
     # Create aiohttp session
     async with aiohttp.ClientSession() as session:
         # Create tasks for all nodes in batch
@@ -281,6 +285,7 @@ async def process_batch_async(
         if isinstance(result, Exception):
             # Task failed
             failed_count += 1
+            failed_fetches += 1
             console.print(f"[yellow]Failed to process {uri}: {result}[/yellow]")
             continue
         
@@ -289,7 +294,16 @@ async def process_batch_async(
         
         if node_data is None:
             failed_count += 1
+            failed_fetches += 1
             continue
+        
+        # Check if we got actual data (not empty response)
+        if not node_data or (isinstance(node_data, dict) and len(node_data) == 0):
+            console.print(f"[yellow]Empty response for {uri}, leaving as PENDING for retry[/yellow]")
+            failed_count += 1
+            continue
+        
+        successful_fetches += 1
         
         try:
             # Extract node details
@@ -325,6 +339,10 @@ async def process_batch_async(
                         description = note.get("value", "")
                         break
             
+            # Tree Traversal: Collect child URIs for bulk insert BEFORE updating status
+            child_uris = extract_child_uris(node_data)
+            all_child_uris.extend(child_uris)
+            
             # Update current node with fetched data and mark as BASE_DONE
             update_node_data(
                 conn,
@@ -335,10 +353,6 @@ async def process_batch_async(
                 raw_data=node_data,
                 status="BASE_DONE",
             )
-            
-            # Tree Traversal: Collect child URIs for bulk insert
-            child_uris = extract_child_uris(node_data)
-            all_child_uris.extend(child_uris)
             
             processed_count += 1
             
@@ -357,6 +371,7 @@ async def process_batch_async(
     conn.commit()
     
     console.print(f"[green]Batch complete: {processed_count} processed, {failed_count} failed[/green]")
+    console.print(f"[dim]API fetch stats: {successful_fetches} successful, {failed_fetches} failed[/dim]")
     console.print(f"[green]Remaining PENDING: {count_nodes_by_status(conn, 'PENDING')}[/green]")
     console.print(f"[green]Total BASE_DONE: {count_nodes_by_status(conn, 'BASE_DONE')}[/green]")
     
