@@ -185,3 +185,106 @@ def is_db_empty(conn: sqlite3.Connection) -> bool:
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM icd_nodes_state")
     return cursor.fetchone()[0] == 0
+
+
+def has_pending_nodes(conn: sqlite3.Connection) -> bool:
+    """Check if there are any PENDING nodes in the queue."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM icd_nodes_state WHERE status = 'PENDING' LIMIT 1")
+    return cursor.fetchone() is not None
+
+
+def detect_stuck_state(conn: sqlite3.Connection) -> bool:
+    """Detect 'stuck' or 'dead' database state.
+    
+    A stuck state occurs when:
+    - Database is NOT empty (has at least one record)
+    - But has NO PENDING nodes to process
+    
+    This indicates the sync process completed without actually syncing data,
+    or the queue initialization was skipped due to non-empty DB check.
+    
+    Returns True if stuck state is detected.
+    """
+    cursor = conn.cursor()
+    
+    # Check total count
+    cursor.execute("SELECT COUNT(*) FROM icd_nodes_state")
+    total_count = cursor.fetchone()[0]
+    
+    if total_count == 0:
+        return False  # Empty DB is not stuck, it needs seeding
+    
+    # Check for PENDING nodes
+    cursor.execute("SELECT COUNT(*) FROM icd_nodes_state WHERE status = 'PENDING'")
+    pending_count = cursor.fetchone()[0]
+    
+    # Stuck if: has records but no pending nodes
+    return total_count > 0 and pending_count == 0
+
+
+def recover_from_stuck_state(conn: sqlite3.Connection) -> int:
+    """Recover from stuck state by re-seeding the queue.
+    
+    If the root node has 'release' or 'latestRelease' data, extract those URIs
+    and add them as PENDING. Otherwise, mark the root node as PENDING again.
+    
+    Returns the number of nodes added to the queue.
+    """
+    cursor = conn.cursor()
+    
+    # Find nodes with BASE_DONE status that might have release info
+    cursor.execute("""
+        SELECT uri, raw_data FROM icd_nodes_state 
+        WHERE status = 'BASE_DONE' AND raw_data LIKE '%release%'
+        LIMIT 1
+    """)
+    row = cursor.fetchone()
+    
+    inserted_count = 0
+    
+    if row:
+        import json
+        root_uri = row[0]
+        raw_data = json.loads(row[1])
+        
+        # Extract release URIs
+        release_uris = set()
+        
+        # From 'release' array
+        releases = raw_data.get("release", [])
+        if isinstance(releases, list):
+            for rel in releases:
+                if isinstance(rel, str):
+                    release_uris.add(rel.replace("http://", "https://"))
+                elif isinstance(rel, dict) and "@id" in rel:
+                    release_uris.add(rel["@id"].replace("http://", "https://"))
+        
+        # From 'latestRelease'
+        latest = raw_data.get("latestRelease", "")
+        if isinstance(latest, str) and latest:
+            release_uris.add(latest.replace("http://", "https://"))
+        elif isinstance(latest, dict) and "@id" in latest:
+            release_uris.add(latest["@id"].replace("http://", "https://"))
+        
+        # Insert release URIs as PENDING
+        if release_uris:
+            for uri in release_uris:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO icd_nodes_state (uri, status)
+                    VALUES (?, 'PENDING')
+                """, (uri,))
+                if cursor.rowcount > 0:
+                    inserted_count += 1
+            
+            conn.commit()
+            return inserted_count
+    
+    # Fallback: re-insert the root URI as PENDING
+    cursor.execute("""
+        UPDATE OR IGNORE icd_nodes_state SET status = 'PENDING'
+        WHERE uri = (SELECT uri FROM icd_nodes_state LIMIT 1)
+    """)
+    conn.commit()
+    
+    return cursor.rowcount

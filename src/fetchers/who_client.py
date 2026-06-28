@@ -43,6 +43,8 @@ from core.db import (
     insert_pending_nodes_bulk_ignore,
     update_node_data,
     count_nodes_by_status,
+    detect_stuck_state,
+    recover_from_stuck_state,
 )
 
 # Configuration
@@ -156,14 +158,21 @@ def extract_icd_code(title: str | dict[str, Any]) -> str:
 def extract_child_uris(node_data: dict[str, Any]) -> list[str]:
     """Extract child URIs from a node's API response.
     
-    The WHO API returns children in the 'child' field as either:
-    - A list of URIs (strings)
-    - A list of objects with '@id' fields
-    - A dict with language-keyed values containing objects with '@id'
-    - A dict with @list structure containing items with '@id'
+    The WHO API returns children in multiple fields:
+    - 'child' field: as either:
+        - A list of URIs (strings)
+        - A list of objects with '@id' fields
+        - A dict with language-keyed values containing objects with '@id'
+        - A dict with @list structure containing items with '@id'
+    - 'release' field: array of release version URIs (for root nodes)
+    - 'latestRelease': single URI to latest release version
+    
+    Returns all discovered URIs for queue-based traversal.
     """
-    children = node_data.get("child", [])
     child_uris: list[str] = []
+    
+    # Process 'child' field
+    children = node_data.get("child", [])
     
     # Handle case where children might be a dict (language-keyed or @list structure)
     if isinstance(children, dict):
@@ -174,33 +183,55 @@ def extract_child_uris(node_data: dict[str, Any]) -> list[str]:
             # Try to get English version first, otherwise take first available
             children = children.get('en', []) or children.get('en-US', []) or next(iter(children.values()), [])
     
-    if not isinstance(children, list):
-        return child_uris
-    
-    for child in children:
-        if isinstance(child, str):
-            # Direct URI string
-            uri = child.replace("http://", "https://")
-            child_uris.append(uri)
-        elif isinstance(child, dict):
-            # Object with @id field (JSON-LD reference)
-            if "@id" in child:
-                uri = child["@id"].replace("http://", "https://")
+    if isinstance(children, list):
+        for child in children:
+            if isinstance(child, str):
+                # Direct URI string
+                uri = child.replace("http://", "https://")
                 child_uris.append(uri)
-            # Check for nested structures where @id might be in a sub-object
-            elif "target" in child and isinstance(child["target"], dict):
-                target = child["target"]
-                if "@id" in target:
-                    uri = target["@id"].replace("http://", "https://")
+            elif isinstance(child, dict):
+                # Object with @id field (JSON-LD reference)
+                if "@id" in child:
+                    uri = child["@id"].replace("http://", "https://")
                     child_uris.append(uri)
-            # Check for embedded entity with @id at top level of nested dict
-            elif "@graph" in child:
-                graph = child["@graph"]
-                if isinstance(graph, list) and len(graph) > 0:
-                    for item in graph:
-                        if isinstance(item, dict) and "@id" in item:
-                            uri = item["@id"].replace("http://", "https://")
-                            child_uris.append(uri)
+                # Check for nested structures where @id might be in a sub-object
+                elif "target" in child and isinstance(child["target"], dict):
+                    target = child["target"]
+                    if "@id" in target:
+                        uri = target["@id"].replace("http://", "https://")
+                        child_uris.append(uri)
+                # Check for embedded entity with @id at top level of nested dict
+                elif "@graph" in child:
+                    graph = child["@graph"]
+                    if isinstance(graph, list) and len(graph) > 0:
+                        for item in graph:
+                            if isinstance(item, dict) and "@id" in item:
+                                uri = item["@id"].replace("http://", "https://")
+                                child_uris.append(uri)
+    
+    # Process 'release' field (array of release version URIs)
+    releases = node_data.get("release", [])
+    if isinstance(releases, list):
+        for release in releases:
+            if isinstance(release, str):
+                uri = release.replace("http://", "https://")
+                if uri not in child_uris:
+                    child_uris.append(uri)
+            elif isinstance(release, dict) and "@id" in release:
+                uri = release["@id"].replace("http://", "https://")
+                if uri not in child_uris:
+                    child_uris.append(uri)
+    
+    # Process 'latestRelease' field (single URI)
+    latest_release = node_data.get("latestRelease", "")
+    if isinstance(latest_release, str) and latest_release:
+        uri = latest_release.replace("http://", "https://")
+        if uri not in child_uris:
+            child_uris.append(uri)
+    elif isinstance(latest_release, dict) and "@id" in latest_release:
+        uri = latest_release["@id"].replace("http://", "https://")
+        if uri not in child_uris:
+            child_uris.append(uri)
     
     return child_uris
 
@@ -351,6 +382,13 @@ async def main_async(data_dir: Path) -> int:
     start_time = time.time()
     
     try:
+        # Check for stuck/dead database state BEFORE processing
+        if detect_stuck_state(conn):
+            console.print("[yellow]Detected stuck database state (no PENDING nodes but DB not empty)[/yellow]")
+            console.print("[blue]Attempting recovery...[/blue]")
+            recovered = recover_from_stuck_state(conn)
+            console.print(f"[green]Recovery complete: added {recovered} nodes to queue[/green]")
+        
         # Create aiohttp session for token request
         async with aiohttp.ClientSession() as session:
             # Get OAuth token
@@ -410,17 +448,22 @@ async def main_async(data_dir: Path) -> int:
         pending_nodes = get_nodes_by_status(conn, "PENDING", BATCH_SIZE)
         
         if not pending_nodes:
-            console.print("[green]Tree fully synced - no PENDING nodes remaining[/green]")
+            # After recovery check, still no pending nodes - either complete or truly stuck
+            base_done_count = count_nodes_by_status(conn, "BASE_DONE")
+            if base_done_count > 0:
+                console.print(f"[green]Sync complete: {base_done_count} nodes processed[/green]")
+            else:
+                console.print("[yellow]No nodes to process and no completed nodes - database may need manual reset[/yellow]")
             return 0
         
         # Process one batch asynchronously
         processed, failed = await process_batch_async(conn, pending_nodes, token)
         
-        if processed == 0:
-            # No pending nodes - sync complete
-            return 0
-        
+        # Log progress checkpoint
         elapsed = time.time() - start_time
+        remaining = count_nodes_by_status(conn, "PENDING")
+        total_done = count_nodes_by_status(conn, "BASE_DONE")
+        console.print(f"[dim]Checkpoint: {elapsed:.1f}s elapsed, {remaining} pending, {total_done} completed[/dim]")
         console.print(f"[dim]Batch completed in {elapsed:.1f} seconds[/dim]")
         
         return 0
