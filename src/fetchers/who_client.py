@@ -295,12 +295,14 @@ async def process_batch_async(
         if node_data is None:
             failed_count += 1
             failed_fetches += 1
+            # Leave node as PENDING for retry in next batch
             continue
         
         # Check if we got actual data (not empty response)
         if not node_data or (isinstance(node_data, dict) and len(node_data) == 0):
             console.print(f"[yellow]Empty response for {uri}, leaving as PENDING for retry[/yellow]")
             failed_count += 1
+            # Leave node as PENDING for retry in next batch
             continue
         
         successful_fetches += 1
