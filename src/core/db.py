@@ -226,61 +226,107 @@ def detect_stuck_state(conn: sqlite3.Connection) -> bool:
 def recover_from_stuck_state(conn: sqlite3.Connection) -> int:
     """Recover from stuck state by re-seeding the queue.
     
-    If the root node has 'release' or 'latestRelease' data, extract those URIs
-    and add them as PENDING. Otherwise, mark the root node as PENDING again.
+    If any BASE_DONE node has 'child', 'release' or 'latestRelease' data, extract those URIs
+    and add them as PENDING. Otherwise, mark existing nodes as PENDING again.
     
     Returns the number of nodes added to the queue.
     """
     cursor = conn.cursor()
     
-    # Find nodes with BASE_DONE status that might have release info
+    # Find ALL BASE_DONE nodes that might have child/release info
     cursor.execute("""
         SELECT uri, raw_data FROM icd_nodes_state 
-        WHERE status = 'BASE_DONE' AND raw_data LIKE '%release%'
-        LIMIT 1
+        WHERE status = 'BASE_DONE' AND raw_data != '{}'
     """)
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     
     inserted_count = 0
     
-    if row:
+    for row in rows:
         import json
-        root_uri = row[0]
+        node_uri = row[0]
         raw_data = json.loads(row[1])
         
-        # Extract release URIs
-        release_uris = set()
+        if not raw_data or not isinstance(raw_data, dict):
+            continue
         
-        # From 'release' array
+        # Extract child URIs using the same logic as in who_client.py
+        child_uris = set()
+        
+        # Process 'child' field
+        children = raw_data.get("child", [])
+        
+        # Handle case where children might be a dict (language-keyed or @list structure)
+        if isinstance(children, dict):
+            # Try JSON-LD @list structure first
+            if '@list' in children:
+                children = children['@list']
+            else:
+                # Try to get English version first, otherwise take first available
+                children = children.get('en', []) or children.get('en-US', []) or next(iter(children.values()), [])
+        
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, str):
+                    # Direct URI string
+                    uri = child.replace("http://", "https://")
+                    child_uris.add(uri)
+                elif isinstance(child, dict):
+                    # Object with @id field (JSON-LD reference)
+                    if "@id" in child:
+                        uri = child["@id"].replace("http://", "https://")
+                        child_uris.add(uri)
+                    # Check for nested structures where @id might be in a sub-object
+                    elif "target" in child and isinstance(child["target"], dict):
+                        target = child["target"]
+                        if "@id" in target:
+                            uri = target["@id"].replace("http://", "https://")
+                            child_uris.add(uri)
+                    # Check for embedded entity with @id at top level of nested dict
+                    elif "@graph" in child:
+                        graph = child["@graph"]
+                        if isinstance(graph, list) and len(graph) > 0:
+                            for item in graph:
+                                if isinstance(item, dict) and "@id" in item:
+                                    uri = item["@id"].replace("http://", "https://")
+                                    child_uris.add(uri)
+        
+        # Process 'release' field (array of release version URIs)
         releases = raw_data.get("release", [])
         if isinstance(releases, list):
-            for rel in releases:
-                if isinstance(rel, str):
-                    release_uris.add(rel.replace("http://", "https://"))
-                elif isinstance(rel, dict) and "@id" in rel:
-                    release_uris.add(rel["@id"].replace("http://", "https://"))
+            for release in releases:
+                if isinstance(release, str):
+                    uri = release.replace("http://", "https://")
+                    child_uris.add(uri)
+                elif isinstance(release, dict) and "@id" in release:
+                    uri = release["@id"].replace("http://", "https://")
+                    child_uris.add(uri)
         
-        # From 'latestRelease'
-        latest = raw_data.get("latestRelease", "")
-        if isinstance(latest, str) and latest:
-            release_uris.add(latest.replace("http://", "https://"))
-        elif isinstance(latest, dict) and "@id" in latest:
-            release_uris.add(latest["@id"].replace("http://", "https://"))
+        # Process 'latestRelease' field (single URI)
+        latest_release = raw_data.get("latestRelease", "")
+        if isinstance(latest_release, str) and latest_release:
+            uri = latest_release.replace("http://", "https://")
+            child_uris.add(uri)
+        elif isinstance(latest_release, dict) and "@id" in latest_release:
+            uri = latest_release["@id"].replace("http://", "https://")
+            child_uris.add(uri)
         
-        # Insert release URIs as PENDING
-        if release_uris:
-            for uri in release_uris:
+        # Insert all discovered URIs as PENDING
+        if child_uris:
+            for uri in child_uris:
                 cursor.execute("""
                     INSERT OR IGNORE INTO icd_nodes_state (uri, status)
                     VALUES (?, 'PENDING')
                 """, (uri,))
                 if cursor.rowcount > 0:
                     inserted_count += 1
-            
-            conn.commit()
-            return inserted_count
     
-    # Fallback: re-insert the root URI as PENDING
+    # If we found and inserted child URIs, commit and return
+    if inserted_count > 0:
+        conn.commit()
+        return inserted_count
+    
+    # Fallback: re-insert the first node as PENDING if no child URIs found
     cursor.execute("""
         UPDATE OR IGNORE icd_nodes_state SET status = 'PENDING'
         WHERE uri = (SELECT uri FROM icd_nodes_state LIMIT 1)

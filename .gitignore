@@ -1,4 +1,13 @@
 ```
-__pycache__/
+# Compiled Python files
 *.pyc
+__pycache__/
+
+# Database files
+data/db/*.db
+
+# Environment files
+.env
+.env.local
+*.env.*
 ```
