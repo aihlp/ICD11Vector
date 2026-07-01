@@ -1,0 +1,28 @@
+entity_uri: https://id.who.int/icd/release/11/2019-04/mms/1263546640
+code: Tumour
+title_en: Tumour spread simplified scale value
+definition_en: ''
+parent_code: null
+children_codes:
+- '1863636238'
+- '885826145'
+- '1746207012'
+- '303697349'
+- '762680909'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 5
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'
