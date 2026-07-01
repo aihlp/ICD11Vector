@@ -22,6 +22,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Prevent runaway jobs, allow enough time for batch processing
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -46,9 +47,11 @@ jobs:
           ICD_CLIENT_SECRET: ${{ secrets.ICD_CLIENT_SECRET }}
         run: |
           python src/fetchers/who_client.py --data-dir data
+        continue-on-error: false  # Fail the job if sync script fails unexpectedly
 
       - name: Commit and push SQLite state
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
         with:
           commit_message: "chore: auto-commit sync_state.db after WHO ICD-11 batch sync"
           file_pattern: "data/db/sync_state.db"
