@@ -31,8 +31,6 @@ from typing import Any
 
 import aiohttp
 from rich.console import Console
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tenacity.asyncio import AsyncRetrying
 
 # Import from core.db module
 from core.db import (
@@ -62,6 +60,13 @@ WHO_MMS_RELEASE_URL = "https://id.who.int/icd/release/11/mms"
 # These are used to seed the queue if the database is empty
 ICD11_ROOT_URI = "https://id.who.int/icd/release/11/mms"
 
+# Fallback release versions in case latestRelease is unavailable
+FALLBACK_RELEASE_VERSIONS = [
+    "2026-01",
+    "2025-01",
+    "2024-01",
+    "2023-01",
+]
 
 console = Console()
 
@@ -80,41 +85,111 @@ async def get_token(session: aiohttp.ClientSession, client_id: str, client_secre
         return result["access_token"]  # type: ignore[no-any-return]
 
 
-@retry(
-    stop=stop_after_attempt(MAX_RETRIES),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type(Exception),
-)
-async def fetch_node_data_async(
+async def fetch_node_data_safe(
     session: aiohttp.ClientSession,
     uri: str,
     token: str,
-    semaphore: asyncio.Semaphore,
+    semaphore: asyncio.Semaphore | None = None,
+    max_retries: int = MAX_RETRIES,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Fetch node data from WHO API asynchronously with retries and timeout.
+    """Fetch node data from WHO API with manual retry logic and proper error handling.
     
-    Uses tenacity for automatic retries on transient failures.
+    Uses manual retry with exponential backoff instead of tenacity to avoid
+    issues with aiohttp session state. Distinguishes between 4xx (no retry)
+    and 5xx/timeout (retry) errors.
+    
     Returns tuple of (uri, data) where data is None if failed.
     """
-    async with semaphore:
-        # Convert http:// to https:// for consistency
-        url = uri.replace("http://", "https://")
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-            "Accept-Language": "en",
-            "API-Version": "v2",
-        }
-        
+    # Use semaphore if provided to limit concurrency
+    if semaphore:
+        async with semaphore:
+            return await _fetch_with_retry(session, uri, token, max_retries)
+    else:
+        return await _fetch_with_retry(session, uri, token, max_retries)
+
+
+async def _fetch_with_retry(
+    session: aiohttp.ClientSession,
+    uri: str,
+    token: str,
+    max_retries: int,
+) -> tuple[str, dict[str, Any] | None]:
+    """Internal function to perform fetch with retry logic."""
+    # Convert http:// to https:// for consistency
+    url = uri.replace("http://", "https://")
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/json",
+        "Accept-Language": "en",
+        "API-Version": "v2",
+    }
+    
+    last_error: Exception | None = None
+    
+    for attempt in range(max_retries):
         try:
             async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT)) as resp:
-                resp.raise_for_status()
-                data = await resp.json()
-                return (uri, data)  # type: ignore[no-any-return]
+                status = resp.status
+                
+                if status == 200:
+                    data = await resp.json()
+                    console.print(f"[dim]✓ {url} ({status})[/dim]")
+                    return (uri, data)
+                
+                elif 400 <= status < 500:
+                    # Client error - don't retry
+                    error_text = ""
+                    try:
+                        error_text = await resp.text()
+                        error_text = error_text[:500] if error_text else ""
+                    except Exception:
+                        pass
+                    
+                    console.print(f"[red]Client error {status} for {url}: {error_text[:200]}[/red]")
+                    return (uri, None)
+                
+                else:
+                    # Server error (5xx) - retry
+                    error_text = ""
+                    try:
+                        error_text = await resp.text()
+                        error_text = error_text[:500] if error_text else ""
+                    except Exception:
+                        pass
+                    
+                    console.print(f"[yellow]Server error {status} for {url}, attempt {attempt+1}/{max_retries}[/yellow]")
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt  # Exponential backoff
+                        console.print(f"[dim]Waiting {wait_time}s before retry...[/dim]")
+                        await asyncio.sleep(wait_time)
+                    last_error = Exception(f"Server error {status}")
+                    
+        except asyncio.TimeoutError:
+            console.print(f"[yellow]Timeout for {url}, attempt {attempt+1}/{max_retries}[/yellow]")
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                console.print(f"[dim]Waiting {wait_time}s before retry...[/dim]")
+                await asyncio.sleep(wait_time)
+            last_error = asyncio.TimeoutError(f"Timeout after {attempt+1} attempts")
+            
+        except aiohttp.ClientError as e:
+            # Network/connection error - may retry
+            console.print(f"[yellow]Network error for {url}: {type(e).__name__}: {e}[/yellow]")
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                console.print(f"[dim]Waiting {wait_time}s before retry...[/dim]")
+                await asyncio.sleep(wait_time)
+            last_error = e
+            
         except Exception as e:
-            # Re-raise to trigger tenacity retry
-            raise e
+            # Unexpected error - log and return None (don't retry)
+            console.print(f"[red]Unexpected error for {url}: {type(e).__name__}: {e}[/red]")
+            return (uri, None)
+    
+    # All retries exhausted
+    console.print(f"[red]All {max_retries} attempts failed for {url}[/red]")
+    return (uri, None)
 
 
 def extract_icd_code(title: str | dict[str, Any]) -> str:
@@ -262,11 +337,11 @@ async def process_batch_async(
     successful_fetches = 0
     failed_fetches = 0
     
-    # Create aiohttp session
-    async with aiohttp.ClientSession() as session:
+    # Create aiohttp session with trust_env for proper SSL handling
+    async with aiohttp.ClientSession(trust_env=True) as session:
         # Create tasks for all nodes in batch
         tasks = [
-            fetch_node_data_async(session, node["uri"], token, semaphore)
+            fetch_node_data_safe(session, node["uri"], token, semaphore)
             for node in pending_nodes
         ]
         
@@ -406,8 +481,8 @@ async def main_async(data_dir: Path) -> int:
             recovered = recover_from_stuck_state(conn)
             console.print(f"[green]Recovery complete: added {recovered} nodes to queue[/green]")
         
-        # Create aiohttp session for token request
-        async with aiohttp.ClientSession() as session:
+        # Create aiohttp session for token request with trust_env for SSL
+        async with aiohttp.ClientSession(trust_env=True) as session:
             # Get OAuth token
             console.print("[bold green]Obtaining OAuth2 token...[/bold green]")
             token = await get_token(session, client_id, client_secret)
@@ -417,49 +492,68 @@ async def main_async(data_dir: Path) -> int:
             if is_db_empty(conn):
                 console.print("[yellow]Database empty - seeding initial queue...[/yellow]")
                 
-                # Fetch the MMS root to get the latest release URI
-                semaphore = asyncio.Semaphore(1)
-                async with aiohttp.ClientSession() as seed_session:
-                    _, root_data = await fetch_node_data_async(seed_session, ICD11_ROOT_URI, token, semaphore)
-                
-                if root_data:
-                    # Extract latestRelease URI and fetch that version to get chapters
-                    latest_release_uri = root_data.get("latestRelease", "")
+                try:
+                    # Step 1: Fetch the MMS root to get chapters directly
+                    semaphore = asyncio.Semaphore(1)
+                    _, root_data = await fetch_node_data_safe(session, ICD11_ROOT_URI, token, semaphore)
                     
-                    if latest_release_uri:
-                        console.print(f"[blue]Fetching latest release: {latest_release_uri}[/blue]")
-                        # Convert to https
-                        latest_release_uri = latest_release_uri.replace("http://", "https://")
+                    chapter_uris: list[str] = []
+                    
+                    if root_data:
+                        # Step 2: Try to extract child URIs (chapters) from root response first
+                        chapter_uris = extract_child_uris(root_data)
                         
-                        # Fetch the specific release to get chapter URIs
-                        _, release_data = await fetch_node_data_async(seed_session, latest_release_uri, token, semaphore)
-                        
-                        if release_data:
-                            chapter_uris = extract_child_uris(release_data)
-                            
-                            if not chapter_uris:
-                                # Fallback: insert the release URI itself
-                                console.print("[yellow]No chapters found, inserting release URI[/yellow]")
-                                from core.db import insert_pending_node_ignore
-                                insert_pending_node_ignore(conn, latest_release_uri, "PENDING")
-                            else:
-                                console.print(f"[green]Found {len(chapter_uris)} top-level chapters[/green]")
-                                insert_pending_nodes_bulk_ignore(conn, chapter_uris, "PENDING")
-                            
-                            console.print(f"[green]Queue seeded with {count_nodes_by_status(conn, 'PENDING')} pending nodes[/green]")
+                        if chapter_uris:
+                            console.print(f"[green]Found {len(chapter_uris)} top-level chapters from root[/green]")
                         else:
-                            # Fallback: insert release URI directly
-                            from core.db import insert_pending_node_ignore
-                            insert_pending_node_ignore(conn, latest_release_uri, "PENDING")
+                            # Step 3: No chapters in root, try latestRelease
+                            latest_release_uri = root_data.get("latestRelease", "")
+                            if latest_release_uri:
+                                console.print(f"[yellow]No chapters in root, trying latestRelease: {latest_release_uri}[/yellow]")
+                                latest_release_uri = latest_release_uri.replace("http://", "https://")
+                                _, release_data = await fetch_node_data_safe(session, latest_release_uri, token, semaphore)
+                                
+                                if release_data:
+                                    chapter_uris = extract_child_uris(release_data)
+                                    if chapter_uris:
+                                        console.print(f"[green]Found {len(chapter_uris)} chapters from latestRelease[/green]")
+                    
+                    # Step 4: Fallback - try known release versions if no chapters found
+                    if not chapter_uris:
+                        console.print("[yellow]Trying fallback release versions...[/yellow]")
+                        for version in FALLBACK_RELEASE_VERSIONS:
+                            version_url = f"https://id.who.int/icd/release/11/{version}/mms"
+                            console.print(f"[dim]Trying: {version_url}[/dim]")
+                            _, version_data = await fetch_node_data_safe(session, version_url, token, semaphore)
+                            
+                            if version_data:
+                                chapter_uris = extract_child_uris(version_data)
+                                if chapter_uris:
+                                    console.print(f"[green]Found {len(chapter_uris)} chapters in {version}[/green]")
+                                    break
+                    
+                    # Step 5: Insert discovered URIs or fallback to root
+                    if chapter_uris:
+                        insert_pending_nodes_bulk_ignore(conn, chapter_uris, "PENDING")
+                        console.print(f"[green]Queue seeded with {len(chapter_uris)} pending nodes[/green]")
                     else:
-                        # No latestRelease found, fallback to root URI
-                        console.print("[yellow]No latestRelease found, using root URI[/yellow]")
+                        # Last resort: insert root URI itself
+                        console.print("[yellow]All methods failed, inserting root URI as fallback[/yellow]")
                         from core.db import insert_pending_node_ignore
                         insert_pending_node_ignore(conn, ICD11_ROOT_URI, "PENDING")
-                else:
-                    # Fallback: insert root URI directly
+                        
+                except Exception as e:
+                    # Catch any exception during seed and use fallback
+                    console.print(f"[red]Error during seed: {type(e).__name__}: {e}[/red]")
+                    console.print("[yellow]Using fallback: inserting root URI[/yellow]")
                     from core.db import insert_pending_node_ignore
                     insert_pending_node_ignore(conn, ICD11_ROOT_URI, "PENDING")
+        
+        # Verify we have nodes to process after seed
+        pending_count = count_nodes_by_status(conn, "PENDING")
+        if pending_count == 0 and is_db_empty(conn):
+            console.print("[red]Failed to seed initial queue - database still empty[/red]")
+            return 2  # Exit code 2 for "no data"
         
         # Fetch batch of PENDING nodes
         pending_nodes = get_nodes_by_status(conn, "PENDING", BATCH_SIZE)
