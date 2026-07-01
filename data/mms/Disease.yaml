@@ -1,0 +1,38 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/36752588
+code: Disease
+title_en: Disease Specific Severity Scale Value
+definition_en: ''
+parent_code: null
+children_codes:
+- '1263546640'
+- '2122233748'
+- '591767327'
+- '1989267165'
+- '209402542'
+- '582121924'
+- '331649528'
+- '424228508'
+- '115334960'
+- '468940004'
+- '732329079'
+- '914819428'
+- '1451583031'
+- '1569484362'
+- '393595317'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 15
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

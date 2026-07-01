@@ -1,0 +1,32 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/405565289
+code: Schizophrenia
+title_en: Schizophrenia or other primary psychotic disorders
+definition_en: ''
+parent_code: null
+children_codes:
+- '1683919430'
+- '106339515'
+- '18178000'
+- '284410555'
+- '1974996783'
+- '1358754380'
+- '173259898'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 9
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

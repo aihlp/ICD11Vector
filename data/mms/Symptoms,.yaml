@@ -1,0 +1,39 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1843895818
+code: Symptoms,
+title_en: Symptoms, signs or clinical findings, not elsewhere classified
+definition_en: ''
+parent_code: null
+children_codes:
+- '1994504557'
+- '922175770'
+- '181201280'
+- '1597934337'
+- '1088544686'
+- '2138796426'
+- '1564218495'
+- '796618507'
+- '346645181'
+- '14576949'
+- '1342309622'
+- '1810466448'
+- '1907275850'
+- '509543139'
+- '1452443292'
+- other
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 16
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

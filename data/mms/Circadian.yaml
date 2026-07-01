@@ -1,0 +1,30 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1359329403
+code: Circadian
+title_en: Circadian rhythm sleep-wake disorders
+definition_en: ''
+parent_code: null
+children_codes:
+- '1996513332'
+- '138101549'
+- '934354997'
+- '312051047'
+- '756278911'
+- '1378403680'
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 7
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

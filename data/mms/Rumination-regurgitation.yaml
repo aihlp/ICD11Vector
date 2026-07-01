@@ -1,0 +1,23 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1205760590
+code: Rumination-regurgitation
+title_en: Rumination-regurgitation disorder
+definition_en: ''
+parent_code: null
+children_codes: []
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 0
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

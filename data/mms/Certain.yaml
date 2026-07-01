@@ -1,0 +1,46 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1435254666
+code: Certain
+title_en: Certain infectious or parasitic diseases
+definition_en: ''
+parent_code: null
+children_codes:
+- '588616678'
+- '1904876434'
+- '979278646'
+- '1539889147'
+- '1412960686'
+- '1935092859'
+- '487269828'
+- '1000704511'
+- '1104303944'
+- '1585949804'
+- '1959883044'
+- '921595235'
+- '1251496839'
+- '1136802325'
+- '145723401'
+- '985510409'
+- '1646490591'
+- '1939815950'
+- '255141529'
+- '293771399'
+- '1760597414'
+- '458687859'
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 23
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

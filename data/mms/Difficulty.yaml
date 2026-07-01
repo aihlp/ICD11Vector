@@ -1,0 +1,37 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/340003177
+code: Difficulty
+title_en: Difficulty or need for assistance with activities
+definition_en: ''
+parent_code: null
+children_codes:
+- '1539042104'
+- '2127627914'
+- '1349734380'
+- '1019892537'
+- '1501666989'
+- '1079783118'
+- '4906683'
+- '757911124'
+- '402200913'
+- '874042445'
+- '1580775818'
+- '1214710726'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 14
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

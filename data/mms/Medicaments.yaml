@@ -1,0 +1,46 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1170065830
+code: Medicaments
+title_en: Medicaments
+definition_en: ''
+parent_code: null
+children_codes:
+- '16341703'
+- '373236638'
+- '1756699061'
+- '1891241424'
+- '1193684303'
+- '1853123588'
+- '534456613'
+- '428256012'
+- '33615934'
+- '648146092'
+- '808405469'
+- '1870704429'
+- '1732158747'
+- '1416993969'
+- '2121804732'
+- '2043582775'
+- '1960627774'
+- '1076458680'
+- '448177412'
+- '1864983449'
+- '543245955'
+- '2017927415'
+- '511194385'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 23
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

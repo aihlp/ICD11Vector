@@ -1,0 +1,49 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/632148635
+code: Objects,
+title_en: Objects, living things or substances involved in causing injury
+definition_en: ''
+parent_code: null
+children_codes:
+- '1151626888'
+- '2111620040'
+- '1794418440'
+- '254646600'
+- '403045768'
+- '561860808'
+- '911553544'
+- '355521464'
+- '35174264'
+- '1298357017'
+- '1514880985'
+- '1664324249'
+- '1947989593'
+- '297977881'
+- '116042969'
+- '1066533273'
+- '683304281'
+- '199197415'
+- '486008359'
+- '1410221427'
+- '1836509235'
+- '2053016819'
+- '528986803'
+- '145741427'
+- '1454547412'
+- '1380607018'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 26
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

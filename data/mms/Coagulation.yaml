@@ -1,0 +1,33 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1762461746
+code: Coagulation
+title_en: Coagulation defects, purpura or other haemorrhagic or related conditions
+definition_en: ''
+parent_code: null
+children_codes:
+- '1016799900'
+- '1881300992'
+- '1895608758'
+- '1733531851'
+- '72474955'
+- '11621191'
+- '683583694'
+- '757747508'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 10
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

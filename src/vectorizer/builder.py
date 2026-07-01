@@ -1,6 +1,5 @@
-"""Vectorization module for building LanceDB vector database."""
+"""Vectorization module for building LanceDB vector database from YAML files."""
 
-import json
 import os
 import zipfile
 from pathlib import Path
@@ -17,63 +16,69 @@ def get_lancedb_path(data_dir: Path) -> Path:
     return db_dir
 
 
+def load_yaml(file_path: Path) -> dict | None:
+    """Load a YAML file."""
+    try:
+        import yaml
+        with open(file_path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)  # type: ignore[no-any-return]
+    except Exception:
+        return None
+
+
 def build_vector_database(
     data_dir: Path,
     model_name: str = "intfloat/multilingual-e5-large",
     batch_size: int = 32,
 ) -> None:
-    """Build LanceDB vector database from SQLite state.
+    """Build LanceDB vector database from enriched YAML files.
     
-    Connects to sync_state.db, selects rows with status 'PENDING' or 'ENRICHED',
-    generates embeddings using fastembed, and stores them in LanceDB.
+    Reads all YAML files from data/mms/, generates embeddings for
+    vector_text_en field using fastembed, and stores them in LanceDB.
     
     Args:
-        data_dir: Base data directory containing db/ and lancedb_store/
+        data_dir: Base data directory containing mms/ and lancedb_store/
         model_name: Name of the embedding model to use
         batch_size: Batch size for embedding generation
     """
-    # Import here to avoid circular imports
-    from src.core.db import (
-        count_nodes_by_status,
-        get_db_path,
-        get_nodes_by_status,
-        init_db,
-        update_node_status,
-    )
-    
-    db_path = get_db_path(data_dir)
+    mms_dir = data_dir / "mms"
     lancedb_path = get_lancedb_path(data_dir)
     
-    # Initialize and connect to SQLite
-    sqlite_conn = init_db(db_path)
-    
-    # Get nodes that need vectorization (PENDING or ENRICHED status)
-    pending_count = count_nodes_by_status(sqlite_conn, "PENDING")
-    enriched_count = count_nodes_by_status(sqlite_conn, "ENRICHED")
-    
-    if pending_count == 0 and enriched_count == 0:
-        print("No nodes to vectorize.")
-        sqlite_conn.close()
+    if not mms_dir.exists():
+        print(f"MMS directory not found: {mms_dir}")
         return
     
-    print(f"Found {pending_count} PENDING and {enriched_count} ENRICHED nodes to vectorize.")
+    # Get all YAML files
+    yaml_files = list(mms_dir.glob("*.yaml"))
     
-    # Get all nodes to vectorize
-    nodes_to_vectorize = []
-    for status in ["PENDING", "ENRICHED"]:
-        nodes = get_nodes_by_status(sqlite_conn, status)
-        nodes_to_vectorize.extend(nodes)
+    if not yaml_files:
+        print("No YAML files found to vectorize.")
+        return
+    
+    # Filter to only AI-enriched files (have vector_text_en)
+    files_to_vectorize = []
+    for yaml_file in yaml_files:
+        data = load_yaml(yaml_file)
+        if data and data.get("ai_enriched", False) and data.get("vector_text_en"):
+            files_to_vectorize.append((yaml_file, data))
+    
+    if not files_to_vectorize:
+        print("No AI-enriched files with vector_text_en found to vectorize.")
+        print("Run LLM enrichment first to generate vector_text_en content.")
+        return
+    
+    print(f"Found {len(files_to_vectorize)} AI-enriched files to vectorize.")
     
     # Initialize embedding model
     print(f"Loading embedding model: {model_name}")
     embedding_model = TextEmbedding(model_name=model_name)
     
     # Prepare data for LanceDB
-    # Schema: icd_code, title, description, vector, metadata_json
+    # Schema: icd_code, title, vector_text, vector, metadata_json
     schema = pa.schema([
         pa.field("icd_code", pa.string()),
         pa.field("title", pa.string()),
-        pa.field("description", pa.string()),
+        pa.field("vector_text", pa.string()),
         pa.field("vector", pa.list_(pa.float32())),
         pa.field("metadata_json", pa.string()),
     ])
@@ -91,36 +96,39 @@ def build_vector_database(
         table = db.create_table(table_name, schema=schema)
         print(f"Created new table: {table_name}")
     
-    # Process nodes in batches
+    # Process files in batches
     total_processed = 0
-    for i in range(0, len(nodes_to_vectorize), batch_size):
-        batch = nodes_to_vectorize[i:i + batch_size]
+    for i in range(0, len(files_to_vectorize), batch_size):
+        batch = files_to_vectorize[i:i + batch_size]
         
-        # Prepare texts for embedding (title + description)
+        # Prepare texts for embedding
         texts = []
         icd_codes = []
         titles = []
-        descriptions = []
+        vector_texts = []
         metadata_list = []
         
-        for node in batch:
-            raw_data = json.loads(node["raw_data"])
-            title = node["title"]
-            description = node["description"]
+        for yaml_file, data in batch:
+            icd_code = data.get("code", "")
+            title = data.get("title_en", "")
+            vector_text = data.get("vector_text_en", "")
             
-            # Combine title and description for embedding
-            text_for_embedding = f"{title} {description}".strip()
-            if not text_for_embedding:
-                text_for_embedding = title  # Fallback to title only
+            if not vector_text:
+                continue
             
-            texts.append(text_for_embedding)
-            icd_codes.append(node["icd_code"])
+            texts.append(vector_text)
+            icd_codes.append(icd_code)
             titles.append(title)
-            descriptions.append(description)
-            metadata_list.append(json.dumps({
-                "raw_data": raw_data,
-                "source": "icd11_who_api",
+            vector_texts.append(vector_text)
+            metadata_list.append(__import__('json').dumps({
+                "entity_uri": data.get("entity_uri", ""),
+                "definition_en": data.get("definition_en", ""),
+                "ai_enriched": data.get("ai_enriched", False),
+                "symptoms_count": len(data.get("symptoms", [])),
             }))
+        
+        if not texts:
+            continue
         
         # Generate embeddings
         embeddings = list(embedding_model.embed(texts))
@@ -129,7 +137,7 @@ def build_vector_database(
         batch_data = {
             "icd_code": icd_codes,
             "title": titles,
-            "description": descriptions,
+            "vector_text": vector_texts,
             "vector": [emb.tolist() for emb in embeddings],
             "metadata_json": metadata_list,
         }
@@ -137,15 +145,10 @@ def build_vector_database(
         # Add to LanceDB table
         table.add(batch_data)
         
-        # Update SQLite status to VECTORIZED
-        for icd_code in icd_codes:
-            update_node_status(sqlite_conn, icd_code, "VECTORIZED")
-        
         total_processed += len(batch)
-        print(f"Processed batch {i // batch_size + 1}: {len(batch)} nodes ({total_processed}/{len(nodes_to_vectorize)})")
+        print(f"Processed batch {i // batch_size + 1}: {len(batch)} files ({total_processed}/{len(files_to_vectorize)})")
     
-    sqlite_conn.close()
-    print(f"Vectorization complete. Total nodes processed: {total_processed}")
+    print(f"Vectorization complete. Total files processed: {total_processed}")
     print(f"LanceDB store location: {lancedb_path}")
 
 

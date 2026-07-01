@@ -1,0 +1,38 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/531713107
+code: In
+title_en: In situ neoplasms, except of lymphoid, haematopoietic, central nervous system
+  or related tissues
+definition_en: ''
+parent_code: null
+children_codes:
+- '693409079'
+- '1277122723'
+- '951191646'
+- '1576650184'
+- '773281372'
+- '1264360394'
+- '1072810807'
+- '1522140835'
+- '21423737'
+- '1678584813'
+- '62339348'
+- '1978381958'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 14
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

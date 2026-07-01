@@ -1,0 +1,28 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/675177168
+code: Glasgow
+title_en: Glasgow Coma Scale Eye opening score
+definition_en: ''
+parent_code: null
+children_codes:
+- '1720573192'
+- '1401559410'
+- '1488767299'
+- '1840975159'
+- '1170477290'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 5
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'
