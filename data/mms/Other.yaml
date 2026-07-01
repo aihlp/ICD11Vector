@@ -1,0 +1,52 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/487269828
+code: Other
+title_en: Other bacterial diseases
+definition_en: ''
+parent_code: null
+children_codes:
+- '1697630330'
+- '1938462328'
+- '2064398473'
+- '1793762788'
+- '262236278'
+- '2085616610'
+- '1920227791'
+- '508032285'
+- '1966578342'
+- '390042715'
+- '419706488'
+- '6555116'
+- '1664016479'
+- '840525023'
+- '1465035083'
+- '1186214944'
+- '1600014919'
+- '1320736556'
+- '965498095'
+- '1127435854'
+- '1981846'
+- '1012026026'
+- '520429137'
+- '2129350166'
+- '168432503'
+- '698540116'
+- '114886962'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 29
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

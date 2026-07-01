@@ -1,0 +1,42 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/258484393
+code: Structural
+title_en: Structural developmental anomalies primarily affecting one body system
+definition_en: ''
+parent_code: null
+children_codes:
+- '215057274'
+- '750435296'
+- '108076065'
+- '1874269997'
+- '1250212986'
+- '1122022750'
+- '1833285474'
+- '1193804992'
+- '1057832531'
+- '399094619'
+- '260716451'
+- '2013857037'
+- '1907503626'
+- '1136513990'
+- '894625870'
+- '653663824'
+- '1047378803'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 19
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

@@ -1,0 +1,140 @@
+name: KB Pipeline - End-to-End ICD-11 Knowledge Base
+
+on:
+  schedule:
+    # Run every 6 hours to allow iterative LLM batch processing (20 cards x 4 runs = 80 cards/day)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_full_rebuild:
+        description: 'Force full rebuild of all artifacts'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: kb-pipeline
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45  # Allow enough time for all stages including LLM batch
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for proper diff detection
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install openai  # For LLM enrichment
+
+      # ============================================
+      # STAGE 1: Raw Data Ingestion & Base YAML Generation
+      # ============================================
+      - name: Stage 1 - Fetch Raw Data from WHO API
+        env:
+          ICD_CLIENT_ID: ${{ secrets.ICD_CLIENT_ID }}
+          ICD_CLIENT_SECRET: ${{ secrets.ICD_CLIENT_SECRET }}
+        run: |
+          echo "=== Stage 1: Raw Data Ingestion ==="
+          python src/fetchers/who_client.py --data-dir data || echo "WHO fetch completed (may have processed 0 nodes if queue empty)"
+        
+      - name: Stage 1 - Generate Base YAML Files
+        run: |
+          python scripts/generate_base_yaml.py --data-dir data
+        
+      - name: Commit Stage 1 Artifacts
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(stage1): raw ingestion and base yaml generation"
+          file_pattern: "data/db/sync_state.db data/mms/*.yaml"
+          branch: ${{ github.ref_name }}
+
+      # ============================================
+      # STAGE 2: External / Rule-Based Enrichment
+      # ============================================
+      - name: Stage 2 - Rule-based Enrichment
+        run: |
+          echo "=== Stage 2: External Enrichment ==="
+          python scripts/enrich_external.py --data-dir data
+        
+      - name: Commit Stage 2 Artifacts
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(stage2): external rule-based enrichment"
+          file_pattern: "data/mms/*.yaml"
+          branch: ${{ github.ref_name }}
+
+      # ============================================
+      # STAGE 3: Iterative LLM Enrichment (Batch Processing)
+      # ============================================
+      - name: Stage 3 - LLM Enrichment (Batch of 20)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BATCH_SIZE: 20
+        run: |
+          echo "=== Stage 3: LLM Enrichment (Batch Processing) ==="
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "Warning: OPENAI_API_KEY not set. Skipping LLM enrichment."
+          else
+            python scripts/enrich_llm.py --data-dir data --batch-size $BATCH_SIZE
+          fi
+        
+      - name: Commit Stage 3 Artifacts
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(stage3): llm enrichment batch"
+          file_pattern: "data/mms/*.yaml"
+          branch: ${{ github.ref_name }}
+
+      # ============================================
+      # STAGE 4: Vectorization & Indexing
+      # ============================================
+      - name: Stage 4 - Build Vector Database
+        run: |
+          echo "=== Stage 4: Vectorization ==="
+          python scripts/build_vectors.py --data-dir data
+        
+      - name: Stage 4 - Build Symptom Links
+        run: |
+          python scripts/link_symptoms.py --data-dir data
+        
+      - name: Stage 4 - Validate All Artifacts
+        run: |
+          python scripts/validate.py
+        
+      - name: Commit Stage 4 Artifacts
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(stage4): vector db and indices rebuilt"
+          file_pattern: "data/generated/**"
+          branch: ${{ github.ref_name }}
+
+      # ============================================
+      # Summary
+      # ============================================
+      - name: Pipeline Summary
+        run: |
+          echo "=== Pipeline Complete ==="
+          echo ""
+          echo "Artifacts generated:"
+          echo "  - data/db/sync_state.db (SQLite raw data)"
+          echo "  - data/mms/*.yaml (Enriched disease cards)"
+          echo "  - data/foundation/*.yaml (Symptom definitions)"
+          echo "  - data/generated/lancedb_store/ (Vector database)"
+          echo "  - data/generated/links.yaml (Symptom reverse index)"
+          echo ""
+          echo "Disease cards in mms/: $(ls -1 data/mms/*.yaml 2>/dev/null | wc -l)"
+          echo "Foundation symptoms: $(ls -1 data/foundation/*.yaml 2>/dev/null | wc -l)"

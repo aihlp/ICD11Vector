@@ -1,0 +1,41 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1800910986
+code: Haemorrhagic
+title_en: Haemorrhagic or haematological disorders of fetus or newborn
+definition_en: ''
+parent_code: null
+children_codes:
+- '737177485'
+- '1320919577'
+- '974582504'
+- '749972710'
+- '1241014644'
+- '1028993421'
+- '1478425625'
+- '628615515'
+- '742410330'
+- '1435737617'
+- '819483525'
+- '1148519290'
+- '557764336'
+- '932942062'
+- '667239806'
+- '3517042'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 18
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

@@ -1,0 +1,50 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1305837500
+code: Duplications
+title_en: Duplications of the autosomes
+definition_en: ''
+parent_code: null
+children_codes:
+- '1154095363'
+- '1345261840'
+- '2053456367'
+- '996959137'
+- '714395742'
+- '590341977'
+- '2113958308'
+- '2089725013'
+- '316300086'
+- '519805258'
+- '398975192'
+- '468066980'
+- '1045612388'
+- '1313836743'
+- '846398744'
+- '638665628'
+- '707822048'
+- '2041579664'
+- '1972488940'
+- '465911183'
+- '253769118'
+- '517506657'
+- '2089338814'
+- '1565415915'
+- '702744852'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 27
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

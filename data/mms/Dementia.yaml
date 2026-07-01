@@ -1,0 +1,32 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/546689346
+code: Dementia
+title_en: Dementia
+definition_en: ''
+parent_code: null
+children_codes:
+- '795022044'
+- '1365258270'
+- '1777436789'
+- '831337417'
+- '1710319105'
+- '1468768235'
+- '148241182'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 9
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

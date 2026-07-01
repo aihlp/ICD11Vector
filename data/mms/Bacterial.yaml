@@ -1,0 +1,35 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/135352227
+code: Bacterial
+title_en: Bacterial intestinal infections
+definition_en: ''
+parent_code: null
+children_codes:
+- '257068234'
+- '416025325'
+- '2080365623'
+- '344162786'
+- '250688797'
+- '1000894786'
+- '794462570'
+- '1528414070'
+- '1780040028'
+- '515117475'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 12
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

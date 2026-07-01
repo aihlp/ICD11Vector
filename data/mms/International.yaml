@@ -1,0 +1,34 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/486488173
+code: International
+title_en: International provisional assignment of new diseases of uncertain aetiology
+  and emergency use
+definition_en: ''
+parent_code: null
+children_codes:
+- '2103512582'
+- '1730556128'
+- '2024855916'
+- '1195031154'
+- '111539141'
+- '930392961'
+- '1837290846'
+- '205741735'
+- '1750270516'
+- '1473863978'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 10
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

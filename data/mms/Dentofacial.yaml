@@ -1,0 +1,34 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/339662111
+code: Dentofacial
+title_en: Dentofacial anomalies
+definition_en: ''
+parent_code: null
+children_codes:
+- '601747793'
+- '1184251077'
+- '842755132'
+- '1466999214'
+- '1683217879'
+- '614347322'
+- '1104543664'
+- '1786943307'
+- '897101649'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 11
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

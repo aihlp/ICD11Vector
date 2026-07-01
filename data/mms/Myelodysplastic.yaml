@@ -1,0 +1,34 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1147802348
+code: Myelodysplastic
+title_en: Myelodysplastic syndromes
+definition_en: ''
+parent_code: null
+children_codes:
+- '149518956'
+- '81161274'
+- '1018951801'
+- '1793160341'
+- '1839380478'
+- '508306538'
+- '420472577'
+- '1684468291'
+- '699075426'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 11
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

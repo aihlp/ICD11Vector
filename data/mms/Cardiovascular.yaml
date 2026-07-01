@@ -1,0 +1,33 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1008196289
+code: Cardiovascular
+title_en: Cardiovascular disorders present in the perinatal or neonatal period
+definition_en: ''
+parent_code: null
+children_codes:
+- '1611051049'
+- '88964541'
+- '346808536'
+- '1732604740'
+- '1910517058'
+- '1344774532'
+- '1567938151'
+- '1001902101'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 10
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

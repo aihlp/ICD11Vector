@@ -1,0 +1,32 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/1703057973
+code: Sex
+title_en: Sex chromosome anomalies
+definition_en: ''
+parent_code: null
+children_codes:
+- '1293378897'
+- '2055488559'
+- '1632180154'
+- '1096926039'
+- '606736067'
+- '1524287677'
+- '1262245334'
+- other
+- unspecified
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 9
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'

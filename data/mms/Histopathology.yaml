@@ -1,0 +1,73 @@
+entity_uri: https://id.who.int/icd/release/11/2026-01/mms/411368752
+code: Histopathology
+title_en: Histopathology
+definition_en: ''
+parent_code: null
+children_codes:
+- '1255450803'
+- '1401592171'
+- '1286751171'
+- '493891342'
+- '59671317'
+- '1603120779'
+- '1041548506'
+- '1052315868'
+- '1414907749'
+- '162852828'
+- '1978867629'
+- '1025049113'
+- '8987040'
+- '218746635'
+- '1079699653'
+- '1983715813'
+- '1878363789'
+- '332064829'
+- '578851160'
+- '1716858530'
+- '546679566'
+- '854107677'
+- '1260174985'
+- '726115988'
+- '2049079851'
+- '79274524'
+- '2022905621'
+- '928474622'
+- '108819171'
+- '410618845'
+- '1308280814'
+- '1550841006'
+- '1219462764'
+- '521514084'
+- '226408345'
+- '358536454'
+- '1083553185'
+- '2108039829'
+- '428602671'
+- '2128446983'
+- '1965497047'
+- '1826383387'
+- '1024952760'
+- '2065413738'
+- '1891884932'
+- '1488076383'
+- '732271914'
+- '1792010545'
+- '496794681'
+- '1295816090'
+raw_paragraphs: []
+pathophysiology_en: ''
+symptoms: []
+differential_diagnosis: []
+risk_factors: []
+drugs: []
+vector_text_en: ''
+stats:
+  mortality_global_annual: null
+  dalys_global: null
+  incidence_rate_per_100k: null
+  active_clinical_trials: null
+  child_code_count: 50
+  research_link_count: 0
+externally_enriched: false
+ai_enriched: false
+last_updated: '2026-07-01'
