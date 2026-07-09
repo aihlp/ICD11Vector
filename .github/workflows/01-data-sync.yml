@@ -2,9 +2,9 @@ name: 01-Data Sync
 
 on:
   schedule:
-    # Every 10 minutes to maximize throughput (2500 nodes per batch)
-    # At ~85k nodes total, this completes in approximately 6 hours of cumulative compute time
-    - cron: '*/10 * * * *'
+    # Every 2 hours to allow sufficient time for batch processing (~2500 nodes per run)
+    # At ~85k nodes total, this completes in approximately 6-8 hours of cumulative compute time
+    - cron: '0 */2 * * *'
   workflow_dispatch:      # Manual trigger with --force
     inputs:
       force_full_sync:
@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: icd11-data-sync
-  cancel-in-progress: true
+  cancel-in-progress: false  # Do not interrupt running sync processes
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Prevent runaway jobs, allow enough time for batch processing
+    timeout-minutes: 120  # Allow up to 2 hours for batch processing
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,3 +56,5 @@ jobs:
           commit_message: "chore: auto-commit sync_state.db after WHO ICD-11 batch sync"
           file_pattern: "data/db/sync_state.db"
           branch: ${{ github.ref_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com

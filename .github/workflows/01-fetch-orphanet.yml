@@ -33,6 +33,8 @@ jobs:
       
       - name: Commit updated state database
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
+        continue-on-error: true  # Don't fail pipeline if nothing to commit
         with:
           commit_message: "chore: update Orphanet data in state db"
           file_pattern: "data/sync_state.db"

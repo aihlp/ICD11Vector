@@ -65,7 +65,11 @@ def make_request(
     Implements reactive token refresh: on HTTP 401, automatically obtains
     a new token and retries the request. Max 3 retries to prevent infinite loops.
     """
-    # Check total timeout
+    Handles rate limiting (HTTP 429) with exponential backoff.
+    """
+    # Configure SSL for GitHub Actions environment
+    session.trust_env = True  # Use system certificates for SSL
+
     elapsed_hours = (time.time() - start_time) / 3600
     if elapsed_hours > TOTAL_TIMEOUT_HOURS:
         print(f"Total timeout exceeded ({TOTAL_TIMEOUT_HOURS}h)", file=sys.stderr)

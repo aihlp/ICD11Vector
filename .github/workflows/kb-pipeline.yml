@@ -13,7 +13,7 @@ on:
 
 concurrency:
   group: kb-pipeline
-  cancel-in-progress: true
+  cancel-in-progress: false  # Do not interrupt running pipeline processes
 
 permissions:
   contents: write
@@ -21,7 +21,7 @@ permissions:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Allow enough time for all stages including LLM batch
+    timeout-minutes: 180  # Allow up to 3 hours for all stages including LLM batch
     
     steps:
       - name: Checkout code
@@ -57,10 +57,14 @@ jobs:
         
       - name: Commit Stage 1 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
+        continue-on-error: true  # Don't fail pipeline if nothing to commit
         with:
           commit_message: "chore(stage1): raw ingestion and base yaml generation"
           file_pattern: "data/db/sync_state.db data/mms/*.yaml"
           branch: ${{ github.ref_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
 
       # ============================================
       # STAGE 2: External / Rule-Based Enrichment
@@ -72,10 +76,14 @@ jobs:
         
       - name: Commit Stage 2 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
+        continue-on-error: true  # Don't fail pipeline if nothing to commit
         with:
           commit_message: "chore(stage2): external rule-based enrichment"
           file_pattern: "data/mms/*.yaml"
           branch: ${{ github.ref_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
 
       # ============================================
       # STAGE 3: Iterative LLM Enrichment (Batch Processing)
@@ -94,10 +102,14 @@ jobs:
         
       - name: Commit Stage 3 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
+        continue-on-error: true  # Don't fail pipeline if nothing to commit
         with:
           commit_message: "chore(stage3): llm enrichment batch"
           file_pattern: "data/mms/*.yaml"
           branch: ${{ github.ref_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
 
       # ============================================
       # STAGE 4: Vectorization & Indexing
@@ -117,15 +129,20 @@ jobs:
         
       - name: Commit Stage 4 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
+        if: always()  # Always try to commit even if previous steps had issues
+        continue-on-error: true  # Don't fail pipeline if nothing to commit
         with:
           commit_message: "chore(stage4): vector db and indices rebuilt"
           file_pattern: "data/generated/**"
           branch: ${{ github.ref_name }}
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
 
       # ============================================
       # Summary
       # ============================================
       - name: Pipeline Summary
+        if: always()
         run: |
           echo "=== Pipeline Complete ==="
           echo ""
