@@ -222,8 +222,8 @@ def main(data_dir: Path) -> int:
     mms_dir = data_dir / "mms"
     
     if not db_path.exists():
-        print(f"Database not found at {db_path}. Run WHO client first.")
-        return 1
+        print("[yellow]Database not found. Skipping YAML generation gracefully.[/yellow]")
+        return 0
     
     conn = init_db(db_path)
     

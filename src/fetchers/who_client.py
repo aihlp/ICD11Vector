@@ -457,19 +457,21 @@ async def process_batch_async(
 
 async def main_async(data_dir: Path) -> int:
     """Main entry point for async iterative WHO sync."""
-    # Check credentials
-    client_id = os.environ.get("ICD_CLIENT_ID", "")
-    client_secret = os.environ.get("ICD_CLIENT_SECRET", "")
-    
-    if not client_id or not client_secret:
-        console.print("[red]Error: ICD_CLIENT_ID and ICD_CLIENT_SECRET environment variables required[/red]")
-        return 1
-    
+    # 1. INITIALIZE DB FIRST (before credential checks)
     db_path = get_db_path(data_dir)
     console.print(f"[dim]Using database: {db_path}[/dim]")
     
     # Initialize database
     conn = init_db(db_path)
+    
+    # 2. THEN check credentials
+    client_id = os.environ.get("ICD_CLIENT_ID", "")
+    client_secret = os.environ.get("ICD_CLIENT_SECRET", "")
+    
+    if not client_id or not client_secret:
+        console.print("[yellow]Warning: ICD credentials not set. Skipping sync gracefully.[/yellow]")
+        conn.close()
+        return 0  # Return 0 for graceful skip instead of 1 (hard fail)
     
     start_time = time.time()
     

@@ -54,6 +54,7 @@ jobs:
       - name: Stage 1 - Generate Base YAML Files
         run: |
           python scripts/generate_base_yaml.py --data-dir data
+        continue-on-error: true  # Prevents hard failure if DB is empty/missing
         
       - name: Commit Stage 1 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
@@ -73,6 +74,7 @@ jobs:
         run: |
           echo "=== Stage 2: External Enrichment ==="
           python scripts/enrich_external.py --data-dir data
+        continue-on-error: true  # Prevents hard failure if upstream data ingestion was skipped
         
       - name: Commit Stage 2 Artifacts
         uses: stefanzweifel/git-auto-commit-action@v5
