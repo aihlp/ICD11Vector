@@ -213,8 +213,8 @@ def main() -> int:
             link_symptoms = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(link_symptoms)
             
-            build_reverse_index = getattr(link_symptoms, "build_reverse_index")
-            load_yaml = getattr(link_symptoms, "load_yaml")
+            build_reverse_index = link_symptoms.build_reverse_index
+            load_yaml = link_symptoms.load_yaml
             
             try:
                 expected_index = build_reverse_index(base_dir)

@@ -3,28 +3,29 @@
 
 import json
 import os
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import yaml
 
 # Import the script functions
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import yaml
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from fetch_icd11 import (
-    get_token,
-    should_sync,
-    load_state,
-    save_state,
     clear_state,
-    save_metadata,
-    extract_disease_categories,
     collect_foundation_refs,
     extract_code_from_title,
+    extract_disease_categories,
+    extract_foundation_refs_from_entity,
+    get_token,
+    load_state,
+    save_metadata,
+    save_state,
+    should_sync,
     write_disease_yaml,
     write_foundation_yaml,
-    extract_foundation_refs_from_entity,
 )
 
 
