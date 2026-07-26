@@ -1,18 +1,18 @@
 """Tests for the link_symptoms module."""
 
+# Import functions from link_symptoms
+import sys
 from pathlib import Path
 
 import pytest
 import yaml  # type: ignore[import-untyped]
 
-# Import functions from link_symptoms
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from link_symptoms import (  # type: ignore[import-not-found]
     build_reverse_index,
-    write_reverse_index,
     check_reverse_index,
+    write_reverse_index,
 )
 
 

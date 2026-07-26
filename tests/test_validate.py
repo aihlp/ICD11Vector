@@ -1,19 +1,19 @@
 """Tests for the validate module."""
 
+# Import validator functions directly
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-# Import validator functions directly
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from validate import (
     load_schema,
     load_yaml,
-    validate_grade_probability,
     validate_disease_symptoms_exist,
+    validate_grade_probability,
 )
 
 

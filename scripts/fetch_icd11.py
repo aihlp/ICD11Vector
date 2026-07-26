@@ -21,7 +21,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,6 @@ import requests
 import yaml
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-
 
 # Rate limiting: 5 requests per second
 RATE_LIMIT_DELAY = 0.25
@@ -64,7 +63,6 @@ def make_request(
     
     Implements reactive token refresh: on HTTP 401, automatically obtains
     a new token and retries the request. Max 3 retries to prevent infinite loops.
-    """
     Handles rate limiting (HTTP 429) with exponential backoff.
     """
     # Configure SSL for GitHub Actions environment
@@ -255,7 +253,7 @@ def save_metadata(data_dir: Path, release_date: str) -> None:
     metadata_file = data_dir / ".sync_metadata.json"
     metadata = {
         "release_date": release_date,
-        "last_sync": datetime.now(timezone.utc).isoformat(),
+        "last_sync": datetime.now(UTC).isoformat(),
     }
     with open(metadata_file, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
@@ -570,7 +568,7 @@ def write_disease_yaml(category: dict[str, Any], output_path: Path) -> bool:
             "research_link_count": 0,
         },
         "ai_enriched": False,
-        "last_updated": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "last_updated": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
 
     return write_yaml_idempotent(output_path, yaml_data)

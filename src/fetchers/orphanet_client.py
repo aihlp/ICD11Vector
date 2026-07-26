@@ -181,7 +181,7 @@ def update_node_with_orphanet_data(
     
     Merges orphanet data into existing raw_data without overwriting other keys.
     """
-    from src.core.db import get_node_by_code, insert_or_update_node
+    from src.core.db import insert_or_update_node
     
     # Get current node
     cursor = conn.cursor()

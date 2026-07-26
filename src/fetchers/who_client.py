@@ -22,7 +22,6 @@ Environment variables:
 """
 
 import asyncio
-import json
 import os
 import sys
 import time
@@ -34,15 +33,15 @@ from rich.console import Console
 
 # Import from core.db module
 from core.db import (
-    init_db,
-    get_db_path,
-    is_db_empty,
-    get_nodes_by_status,
-    insert_pending_nodes_bulk_ignore,
-    update_node_data,
     count_nodes_by_status,
     detect_stuck_state,
+    get_db_path,
+    get_nodes_by_status,
+    init_db,
+    insert_pending_nodes_bulk_ignore,
+    is_db_empty,
     recover_from_stuck_state,
+    update_node_data,
 )
 
 # Configuration
@@ -165,13 +164,13 @@ async def _fetch_with_retry(
                         await asyncio.sleep(wait_time)
                     last_error = Exception(f"Server error {status}")
                     
-        except asyncio.TimeoutError:
+        except TimeoutError:
             console.print(f"[yellow]Timeout for {url}, attempt {attempt+1}/{max_retries}[/yellow]")
             if attempt < max_retries - 1:
                 wait_time = 2 ** attempt
                 console.print(f"[dim]Waiting {wait_time}s before retry...[/dim]")
                 await asyncio.sleep(wait_time)
-            last_error = asyncio.TimeoutError(f"Timeout after {attempt+1} attempts")
+            last_error = TimeoutError(f"Timeout after {attempt+1} attempts")
             
         except aiohttp.ClientError as e:
             # Network/connection error - may retry

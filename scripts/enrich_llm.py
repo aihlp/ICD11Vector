@@ -225,7 +225,7 @@ def main(data_dir: Path, batch_size: int = 20) -> int:
         
         data = load_yaml(yaml_file)
         if not data:
-            print(f"  Skipped (failed to load)")
+            print("  Skipped (failed to load)")
             skipped_count += 1
             continue
         
@@ -236,7 +236,7 @@ def main(data_dir: Path, batch_size: int = 20) -> int:
         llm_result = call_llm_api(prompt)
         
         if llm_result is None:
-            print(f"  Failed (LLM API error)")
+            print("  Failed (LLM API error)")
             failed_count += 1
             # Continue with next file - don't abort on single failure
             time.sleep(1)  # Brief pause before retry
@@ -244,17 +244,17 @@ def main(data_dir: Path, batch_size: int = 20) -> int:
         
         # Apply enrichment
         if enrich_yaml_with_llm(yaml_file, llm_result):
-            print(f"  Enriched successfully")
+            print("  Enriched successfully")
             enriched_count += 1
             
             # Rate limiting - pause between requests
             time.sleep(0.5)
         else:
-            print(f"  Failed to apply enrichment")
+            print("  Failed to apply enrichment")
             failed_count += 1
     
     print(f"\n{'='*50}")
-    print(f"LLM Enrichment Batch Complete:")
+    print("LLM Enrichment Batch Complete:")
     print(f"  Processed: {enriched_count + failed_count + skipped_count}")
     print(f"  Enriched: {enriched_count}")
     print(f"  Failed: {failed_count}")
@@ -262,7 +262,7 @@ def main(data_dir: Path, batch_size: int = 20) -> int:
     
     if remaining > 0:
         print(f"\n  Remaining files: {remaining}")
-        print(f"  Next scheduled run will continue processing")
+        print("  Next scheduled run will continue processing")
     
     return 0
 

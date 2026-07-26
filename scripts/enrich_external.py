@@ -89,7 +89,7 @@ def extract_symptoms_from_text(
                 "id": symptom_id,
                 "grade": grade,
                 "probability": probability,
-                "note": f"Extracted from definition/paragraphs",
+                "note": "Extracted from definition/paragraphs",
             })
     
     return found_symptoms
@@ -275,7 +275,7 @@ def main(data_dir: Path) -> int:
         else:
             skipped_count += 1
     
-    print(f"\nExternal enrichment complete:")
+    print("\nExternal enrichment complete:")
     print(f"  Enriched: {enriched_count} files")
     print(f"  Skipped: {skipped_count} files")
     
