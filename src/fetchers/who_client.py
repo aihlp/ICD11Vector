@@ -419,6 +419,34 @@ async def process_batch_async(
             child_uris = extract_child_uris(node_data)
             all_child_uris.extend(child_uris)
             
+            # Extract optimization fields for DB storage
+            parent_uri = ""
+            foundation_id = ""
+            chapter_info = {}
+            
+            # Extract parent URI
+            parent = node_data.get("parent", "")
+            if isinstance(parent, str):
+                parent_uri = parent.replace("http://", "https://")
+            elif isinstance(parent, dict) and "@id" in parent:
+                parent_uri = parent["@id"].replace("http://", "https://")
+            
+            # Extract foundation ID from @id
+            entity_id = node_data.get("@id", "")
+            if "/entity/" in entity_id:
+                foundation_id = entity_id.split("/entity/")[-1]
+            
+            # Extract minimal chapter info
+            chapter_info = {
+                "code": node_data.get("code", ""),
+                "classKind": node_data.get("classKind", ""),
+                "title": title_raw,
+            }
+            
+            # Remove large arrays from raw_data to save space (optimization)
+            # These can be fetched on-demand if needed
+            optimized_data = {k: v for k, v in node_data.items() if k not in ["indexTerm", "exclusion", "@context"]}
+            
             # Update current node with fetched data and mark as BASE_DONE
             update_node_data(
                 conn,
@@ -426,8 +454,11 @@ async def process_batch_async(
                 icd_code=icd_code,
                 title=title,
                 description=description,
-                raw_data=node_data,
+                raw_data=optimized_data,
                 status="BASE_DONE",
+                parent_uri=parent_uri,
+                foundation_id=foundation_id,
+                chapter_info=chapter_info,
             )
             
             processed_count += 1
