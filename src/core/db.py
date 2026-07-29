@@ -22,7 +22,10 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     - title (TEXT)
     - description (TEXT)
     - status (TEXT) - Enum: 'PENDING', 'BASE_DONE', 'ENRICHED', 'VECTORIZED'
-    - raw_data (JSON) - Store API responses here
+    - raw_data (JSON) - Store minimized API responses (large arrays removed)
+    - parent_uri (TEXT) - Extracted parent URI for tree traversal
+    - foundation_id (TEXT) - Extracted foundation entity ID
+    - chapter_info (JSON) - Minimal classification metadata
     """
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -35,7 +38,10 @@ def init_db(db_path: Path) -> sqlite3.Connection:
             title TEXT DEFAULT '',
             description TEXT DEFAULT '',
             status TEXT NOT NULL DEFAULT 'PENDING',
-            raw_data TEXT NOT NULL DEFAULT '{}'
+            raw_data TEXT NOT NULL DEFAULT '{}',
+            parent_uri TEXT DEFAULT '',
+            foundation_id TEXT DEFAULT '',
+            chapter_info TEXT DEFAULT '{}'
         )
     """)
     
@@ -47,6 +53,14 @@ def init_db(db_path: Path) -> sqlite3.Connection:
     # Create index on icd_code for lookups
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_icd_code ON icd_nodes_state(icd_code)
+    """)
+    
+    # Create indexes for new optimized columns
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_parent_uri ON icd_nodes_state(parent_uri)
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_foundation_id ON icd_nodes_state(foundation_id)
     """)
     
     conn.commit()
@@ -132,23 +146,30 @@ def update_node_data(
     description: str = "",
     raw_data: dict[str, Any] | None = None,
     status: str | None = None,
+    parent_uri: str = "",
+    foundation_id: str = "",
+    chapter_info: dict[str, Any] | None = None,
 ) -> None:
     """Update node data fields."""
     if raw_data is None:
         raw_data = {}
+    if chapter_info is None:
+        chapter_info = {}
     cursor = conn.cursor()
     if status:
         cursor.execute("""
             UPDATE icd_nodes_state 
-            SET icd_code = ?, title = ?, description = ?, raw_data = ?, status = ?
+            SET icd_code = ?, title = ?, description = ?, raw_data = ?, status = ?,
+                parent_uri = ?, foundation_id = ?, chapter_info = ?
             WHERE uri = ?
-        """, (icd_code, title, description, json.dumps(raw_data), status, uri))
+        """, (icd_code, title, description, json.dumps(raw_data), status, parent_uri, foundation_id, json.dumps(chapter_info), uri))
     else:
         cursor.execute("""
             UPDATE icd_nodes_state 
-            SET icd_code = ?, title = ?, description = ?, raw_data = ?
+            SET icd_code = ?, title = ?, description = ?, raw_data = ?,
+                parent_uri = ?, foundation_id = ?, chapter_info = ?
             WHERE uri = ?
-        """, (icd_code, title, description, json.dumps(raw_data), uri))
+        """, (icd_code, title, description, json.dumps(raw_data), parent_uri, foundation_id, json.dumps(chapter_info), uri))
     conn.commit()
 
 
